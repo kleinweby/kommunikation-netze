@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-Wall -Werror -std=c99 -ggdb
+CFLAGS=-Wall -Werror -std=gnu99 -ggdb
 LDFLAGS=
 
 OBJS_CLIENT=echoclient.o
