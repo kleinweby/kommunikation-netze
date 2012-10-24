@@ -2,8 +2,8 @@ CC=clang
 CFLAGS=-Wall -Werror -std=gnu99 -ggdb
 LDFLAGS=
 
-OBJS_CLIENT=echoclient.o
-OBJS_SERVER=echoserver.o
+OBJS_CLIENT=echoclient.o helper.o
+OBJS_SERVER=echoserver.o helper.o
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $^

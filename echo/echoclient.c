@@ -1,3 +1,5 @@
+#include "helper.h"
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -10,26 +12,6 @@
 #include <stdbool.h>
 
 char *readline (const char *prompt);
-
-char* stringFromSockaddrIn(struct sockaddr_in const* sockaddr) {
-	char* buffer = malloc(100);
-	
-	if (!inet_ntop(sockaddr->sin_family, &sockaddr->sin_addr, buffer, 100))
-		return NULL;
-	
-	size_t len = strlen(buffer);
-	
-	if (sockaddr->sin_family == AF_INET6) {
-		memmove(buffer+1, buffer, strlen(buffer));
-		buffer[0] = '[';
-		buffer[len+1] = ']';
-		len+=2;
-    }
-	
-	snprintf(buffer+len, 99-len, ":%d", ntohs(sockaddr->sin_port));
-	
-	return buffer;
-}
 
 int connectToServer(const char* host, const char* port) {
 	int sock;

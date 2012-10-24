@@ -11,30 +11,12 @@
 #include <fcntl.h>
 #include <poll.h>
 
+#include "helper.h"
+
 static const int kMaxClients = 10;
 
 typedef struct client client_t;
 typedef struct server server_t;
-
-char* stringFromSockaddrIn(struct sockaddr_in const* sockaddr) {
-	char* buffer = malloc(100);
-	
-	if (!inet_ntop(sockaddr->sin_family, &sockaddr->sin_addr, buffer, 100))
-		return NULL;
-	
-	size_t len = strlen(buffer);
-	
-	if (sockaddr->sin_family == AF_INET6) {
-		memmove(buffer+1, buffer, strlen(buffer));
-		buffer[0] = '[';
-		buffer[len+1] = ']';
-		len+=2;
-    }
-	
-	snprintf(buffer+len, 99-len, ":%d", ntohs(sockaddr->sin_port));
-	
-	return buffer;
-}
 
 struct server {
 	// The socket we listen on for new clients
@@ -60,6 +42,56 @@ struct client {
 	size_t bufferLen;
 };
 
+// Set wheter a socket is in blocking or non blocking mode
+bool setBlocking(int socket, bool blocking);
+
+// Open and bind a socket on port
+//  - port = 0 means that we let the kernel assign one for us
+server_t* openAndBindServerSocket(int port);
+
+// Accept a new client and accoiate it with the server
+bool acceptNewClient(server_t* server);
+
+bool readClientToBuffer(client_t* client);
+
+bool writeBufferToClient(client_t* client);
+
+bool processClient(client_t* client);
+
+void CloseClient(client_t* client);
+
+void runloop(server_t* server);
+
+int main(int argc, char** argv) {
+	server_t* server;
+	uint16_t desiredPort;
+	
+	if (argc == 1)
+		desiredPort = 0;
+	else if (argc == 2)
+		desiredPort = atoi(argv[1]);
+	else {
+		printf("%s [port]\n", argv[0]);
+		return EXIT_FAILURE;
+	}
+	
+	printf("Opening server socket...\n");
+	server = openAndBindServerSocket(desiredPort);
+	
+	if (!server) {
+		perror("Could not open server socket:");
+		return EXIT_FAILURE;
+	}
+	
+	printf("Listing on %d for connections...\n", server->port);
+	
+	server->running = true;
+	while(server->running)
+		runloop(server);
+		
+	return EXIT_SUCCESS;
+}
+
 bool setBlocking(int socket, bool blocking) {
 	int opts;
 	
@@ -82,8 +114,6 @@ bool setBlocking(int socket, bool blocking) {
 	return true;
 }
 
-// Open and bind a socket on port
-//  - port = 0 means that we let the kernel assign one for us
 server_t* openAndBindServerSocket(int port) {
 	server_t* server = malloc(sizeof(server_t));
 	
@@ -321,32 +351,3 @@ void runloop(server_t* server) {
 	}
 }
 
-int main(int argc, char** argv) {
-	server_t* server;
-	uint16_t desiredPort;
-	
-	if (argc == 1)
-		desiredPort = 0;
-	else if (argc == 2)
-		desiredPort = atoi(argv[1]);
-	else {
-		printf("%s [port]\n", argv[0]);
-		return EXIT_FAILURE;
-	}
-	
-	printf("Opening server socket...\n");
-	server = openAndBindServerSocket(desiredPort);
-	
-	if (!server) {
-		perror("Could not open server socket:");
-		return EXIT_FAILURE;
-	}
-	
-	printf("Listing on %d for connections...\n", server->port);
-	
-	server->running = true;
-	while(server->running)
-		runloop(server);
-		
-	return EXIT_SUCCESS;
-}
