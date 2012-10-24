@@ -162,7 +162,7 @@ bool readClientToBuffer(client_t* client) {
 		if (size == 0)
 			break;
 		
-		buffer[size] = '\0';
+		buffer[size++] = '\0';
 	
 		if (client->buffer == NULL) {
 			client->buffer = malloc(20);
@@ -183,7 +183,9 @@ bool readClientToBuffer(client_t* client) {
 			client->bufferLen = newSize;
 		}
 	
+		printf("Old buffer %s\n", client->buffer);
 		memcpy(client->buffer + strlen(client->buffer), buffer, size);
+		printf("New buffer %s\n", client->buffer);
 	} while(size == 255);
 	
 	return true;

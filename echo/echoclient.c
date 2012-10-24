@@ -9,9 +9,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-// Sadly the lab pc don't have the readline header installed
 char *readline (const char *prompt);
-void add_history(const char*);
 
 int connectToServer(const char* host, const char* port) {
 	int sock;
@@ -61,9 +59,7 @@ void runloop(int socket) {
 	
 	if (!input)
 		exit(EXIT_SUCCESS);
-	
-	add_history(input);
-	
+
 	send(socket, input, strlen(input), 0);
 	send(socket, "\n", 1, 0);
 	free(input);
@@ -71,6 +67,7 @@ void runloop(int socket) {
 	printf("<");
 	memset(buffer, 0, 255);
 	int i = 0;
+
 	while(i == 0 || (strstr(buffer, "\n") == NULL && i < 255)) {
 		ssize_t s = recv(socket, buffer+i, 255-i, 0);
 		
@@ -109,4 +106,33 @@ int main(int argc, char** argv) {
 		runloop(socket);
 		
 	return EXIT_SUCCESS;
+}
+
+char* readline(const char* prompt) {
+	printf("%s", prompt);
+	fflush(stdout);
+	
+	char* buffer = malloc(20);
+	int i = 0;
+	
+	for(;;) {
+		char c = fgetc(stdin);
+		
+		if (c == EOF) {
+			free(buffer);
+			return NULL;
+		}
+		if (c == '\n')
+			break;
+		
+		if (i > sizeof(buffer)) {
+			buffer = realloc(buffer, sizeof(buffer)*2);
+		}
+		buffer[i] = c;
+		i++;
+	}
+	
+	buffer[i] = '\0';
+
+	return buffer;
 }
