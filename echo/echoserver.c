@@ -1,6 +1,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,6 +15,26 @@ static const int kMaxClients = 10;
 
 typedef struct client client_t;
 typedef struct server server_t;
+
+char* stringFromSockaddrIn(struct sockaddr_in const* sockaddr) {
+	char* buffer = malloc(100);
+	
+	if (!inet_ntop(sockaddr->sin_family, &sockaddr->sin_addr, buffer, 100))
+		return NULL;
+	
+	size_t len = strlen(buffer);
+	
+	if (sockaddr->sin_family == AF_INET6) {
+		memmove(buffer+1, buffer, strlen(buffer));
+		buffer[0] = '[';
+		buffer[len+1] = ']';
+		len+=2;
+    }
+	
+	snprintf(buffer+len, 99-len, ":%d", ntohs(sockaddr->sin_port));
+	
+	return buffer;
+}
 
 struct server {
 	// The socket we listen on for new clients
@@ -141,7 +163,7 @@ bool acceptNewClient(server_t* server) {
 		return false;
 	}
 	
-	printf("Accept client %s...\n", "");
+	printf("Accept client %s...\n", stringFromSockaddrIn(&client->info));
 	
 	return true;
 }
@@ -221,7 +243,7 @@ bool processClient(client_t* client) {
 
 void CloseClient(client_t* client) {
 	server_t* server = client->server;
-	printf("Close client...\n");
+	printf("Close client %s...\n", stringFromSockaddrIn(&client->info));
 	if (client->socket)
 		close(client->socket);
 	

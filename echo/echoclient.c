@@ -11,6 +11,26 @@
 
 char *readline (const char *prompt);
 
+char* stringFromSockaddrIn(struct sockaddr_in const* sockaddr) {
+	char* buffer = malloc(100);
+	
+	if (!inet_ntop(sockaddr->sin_family, &sockaddr->sin_addr, buffer, 100))
+		return NULL;
+	
+	size_t len = strlen(buffer);
+	
+	if (sockaddr->sin_family == AF_INET6) {
+		memmove(buffer+1, buffer, strlen(buffer));
+		buffer[0] = '[';
+		buffer[len+1] = ']';
+		len+=2;
+    }
+	
+	snprintf(buffer+len, 99-len, ":%d", ntohs(sockaddr->sin_port));
+	
+	return buffer;
+}
+
 int connectToServer(const char* host, const char* port) {
 	int sock;
 	struct addrinfo *result;
@@ -34,9 +54,11 @@ int connectToServer(const char* host, const char* port) {
 		}
 		
 		{
-			char buffer[255];
-			if (inet_ntop(server->ai_family, &((struct sockaddr_in const *)server->ai_addr)->sin_addr, buffer, 255)) {
-				printf("Try connecting to %s...\n", buffer);
+			char* desc = stringFromSockaddrIn(((struct sockaddr_in const *)server->ai_addr));
+			
+			if (desc) {
+				printf("Try connecting to %s...\n", desc);
+				free(desc);
 			}
 		}
 		
