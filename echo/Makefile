@@ -11,7 +11,7 @@ OBJS_SERVER=echoserver.o
 all: echoclient echoserver
 
 echoclient: $(OBJS_CLIENT)
-	$(CC) $(LDFLAGS) -lreadline -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^
 
 echoserver: $(OBJS_SERVER)
 	$(CC) $(LDFLAGS) -o $@ $^
