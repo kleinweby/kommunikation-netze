@@ -8,8 +8,10 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <readline/readline.h>
-#include <readline/history.h>
+
+// Sadly the lab pc don't have the readline header installed
+char *readline (const char *prompt);
+void add_history(const char*);
 
 int connectToServer(const char* host, const char* port) {
 	int sock;

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <fcntl.h>
+#include <poll.h>
 
 static const int kMaxClients = 10;
 
@@ -21,9 +22,6 @@ struct server {
 	
 	// Is true when the server should be kept running
 	bool running;
-	
-	// The set for sockets that we observe
-	fd_set selectSockets;
 	
 	// Holds some data about the connected clients
 	client_t* clients[kMaxClients];
@@ -104,12 +102,6 @@ server_t* openAndBindServerSocket(int port) {
 	// Allow up to kMaxClients waiting to accept
 	listen(server->socket, kMaxClients);
 	
-	// Setup the select sockets
-	FD_ZERO(&server->selectSockets);
-	
-	// Add the server socket for incoming connections
-	FD_SET(server->socket, &server->selectSockets);
-	
 	return server;
 }
 
@@ -151,8 +143,6 @@ bool acceptNewClient(server_t* server) {
 	
 	printf("Accept client %s...\n", "");
 	
-	FD_SET(client->socket, &server->selectSockets);
-
 	return true;
 }
 
@@ -226,43 +216,83 @@ bool processClient(client_t* client) {
 	return true;
 }
 
-void closeClient(client_t* client) {
+void CloseClient(client_t* client) {
+	server_t* server = client->server;
+	printf("Close client...\n");
+	if (client->socket)
+		close(client->socket);
 	
+	for (int i = 0; i < kMaxClients; i++) {
+		// Found a spot
+		if (server->clients[i] == client) {
+			server->clients[i] = NULL;
+			break;
+		}
+	}
+	
+	free(client);
 }
 
 void runloop(server_t* server) {
-	fd_set fds;
-	struct timeval timeout = {.tv_sec = 1, .tv_usec = 0};
+	struct pollfd pollDescriptors[kMaxClients + 1];
 	int socksToHandle;
 	
-	// Copy the set so that we don't destory it
-	FD_COPY(&server->selectSockets, &fds);
+	memset(pollDescriptors, 0, sizeof(struct pollfd)*kMaxClients + 1);
+	int pollNumDescriptors = 1;
+	pollDescriptors[0].fd = server->socket;
+	pollDescriptors[0].events = POLLIN | POLLHUP;
+	{
+		int i = 1;
+		for (int j = 0; j < kMaxClients; j++) {
+			if (server->clients[j] != NULL) {
+				pollDescriptors[i].fd = server->clients[j]->socket;
+				pollDescriptors[i].events = POLLIN | POLLHUP;
+				i++;
+				pollNumDescriptors = i;
+			}
+		}
+	}
 	
-	socksToHandle = select(FD_SETSIZE, &fds, NULL, NULL, &timeout);
-	
+	socksToHandle = poll(pollDescriptors, pollNumDescriptors, 10000);
+
 	if (socksToHandle < 0) {
 		server->running = false;
-		perror("select");
+		perror("poll");
 		return;
 	}
 	else if (socksToHandle > 0) {
-		if (FD_ISSET(server->socket, &fds)) {
-			if (!acceptNewClient(server)) {
-				server->running = false;
-				return;
-			}
-			socksToHandle--;
-		}
-		
-		for (int i = 0; i < kMaxClients && socksToHandle > 0; i++) {
-			if (FD_ISSET(server->clients[i]->socket, &fds)) {
-				if (!processClient(server->clients[i])) {
-					closeClient(server->clients[i]);
+		for (int i = 0; i < pollNumDescriptors; i++) {
+			if ((pollDescriptors[i].revents & POLLIN) > 0) {
+				if (pollDescriptors[i].fd == server->socket) {
+					if (!acceptNewClient(server)) {
+						server->running = false;
+						return;
+					}
 				}
-				
-				socksToHandle--;
+				else {
+					for (int j = 0; j < kMaxClients; j++) {
+						if (server->clients[j] && server->clients[j]->socket == pollDescriptors[i].fd) {
+							if (!processClient(server->clients[j])) {
+								CloseClient(server->clients[j]);
+							}
+						}
+					}
+				}
 			}
-		} 
+			if ((pollDescriptors[i].revents & POLLHUP) > 0) {
+				if (pollDescriptors[i].fd == server->socket) {
+						server->running = false;
+						return;
+				}
+				else {
+					for (int j = 0; j < kMaxClients; j++) {
+						if (server->clients[j] && server->clients[j]->socket == pollDescriptors[i].fd) {
+								CloseClient(server->clients[j]);
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
