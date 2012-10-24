@@ -126,7 +126,7 @@ char* readline(const char* prompt) {
 		if (c == '\n')
 			break;
 		
-		if (i > size) {
+		if (i >= size) {
 			size *= 2;
 			buffer = realloc(buffer, size);
 		}
