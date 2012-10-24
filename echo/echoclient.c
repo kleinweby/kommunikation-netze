@@ -68,8 +68,8 @@ void runloop(int socket) {
 	memset(buffer, 0, 255);
 	int i = 0;
 
-	while(i == 0 || (strstr(buffer, "\n") == NULL && i < 255)) {
-		ssize_t s = recv(socket, buffer+i, 255-i, 0);
+	while(i == 0 || (strstr(buffer, "\n") == NULL && i < 254)) {
+		ssize_t s = recv(socket, buffer+i, 254-i, 0);
 		
 		if (s < 0)
 			perror("recv");
@@ -126,7 +126,7 @@ char* readline(const char* prompt) {
 		if (c == '\n')
 			break;
 		
-		if (i > sizeof(buffer)) {
+		if (i > size) {
 			size *= 2;
 			buffer = realloc(buffer, size);
 		}
