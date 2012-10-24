@@ -113,6 +113,7 @@ char* readline(const char* prompt) {
 	fflush(stdout);
 	
 	char* buffer = malloc(20);
+	size_t size = 20;
 	int i = 0;
 	
 	for(;;) {
@@ -126,7 +127,8 @@ char* readline(const char* prompt) {
 			break;
 		
 		if (i > sizeof(buffer)) {
-			buffer = realloc(buffer, sizeof(buffer)*2);
+			size *= 2;
+			buffer = realloc(buffer, size);
 		}
 		buffer[i] = c;
 		i++;
