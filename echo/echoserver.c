@@ -159,8 +159,9 @@ bool readClientToBuffer(client_t* client) {
 			return false;
 		}
 	
-		if (size == 0)
-			break;
+		if (size == 0) {
+			return false;
+		}
 		
 		buffer[size++] = '\0';
 	
