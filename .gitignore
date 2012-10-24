@@ -1,3 +1,5 @@
 *.o
 *~
 einfuehrung/helloworld/helloworld
+echo/echoclient
+echo/echoserver
