@@ -208,8 +208,10 @@ void WebServerUnregisterPollForSocket(WebServer webServer, int socket)
 			if (webServer->pollCallbacks[i].block)
 				Block_release(webServer->pollCallbacks[i].block);
 			
-			memmove(&webServer->pollDescriptors[i], &webServer->pollDescriptors[i+1], sizeof(struct pollfd) * (webServer->numOfPollDescriptors - i));
-			memmove(&webServer->pollCallbacks[i], &webServer->pollCallbacks[i+1], sizeof(struct _pollCallback) * (webServer->numOfPollDescriptors - i));
+			if (i != webServer->numOfPollDescriptors - 1) {
+				memcpy(&webServer->pollDescriptors[i], &webServer->pollDescriptors[webServer->numOfPollDescriptors - 1], sizeof(struct pollfd));
+				memcpy(&webServer->pollCallbacks[i], &webServer->pollCallbacks[webServer->numOfPollDescriptors - 1], sizeof(struct pollfd));
+			}
 			webServer->numOfPollDescriptors--;
 			return;
 		}
