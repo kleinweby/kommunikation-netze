@@ -140,15 +140,13 @@ server_t* openAndBindServerSocket(int port) {
 		
 		// When we did not specify a port, read which port
 		// we connected to
-		if (port == 0) {
-			socklen_t len = sizeof(addr);
-			if (getsockname(server->socket, (struct sockaddr*)&addr, &len) < 0) {
-				close(server->socket);
-				free(server);
-				return NULL;
-			}
-			server->port = ntohs(addr.sin_port);
+		socklen_t len = sizeof(addr);
+		if (getsockname(server->socket, (struct sockaddr*)&addr, &len) < 0) {
+			close(server->socket);
+			free(server);
+			return NULL;
 		}
+		server->port = ntohs(addr.sin_port);
 	}
 	
 	// Allow up to kMaxClients waiting to accept
