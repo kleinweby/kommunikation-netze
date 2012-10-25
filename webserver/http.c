@@ -1,7 +1,7 @@
 
 #include "http.h"
 #include "str_helper.h"
-#include "dictionary.H"
+#include "dictionary.h"
 #include "helper.h"
 #include "workerthread.h"
 
