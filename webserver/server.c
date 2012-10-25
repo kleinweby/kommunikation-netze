@@ -2,6 +2,7 @@
 #include "helper.h"
 #include "http.h"
 #include "workerthread.h"
+#include "queue.h"
 
 #include <netinet/in.h>
 #include <netdb.h>
@@ -13,6 +14,7 @@
 #include <poll.h>
 #include <Block.h>
 #include <assert.h>
+#include <pthread.h>
 
 struct _Server {
 	WebServer webServer;
@@ -28,10 +30,18 @@ struct _Server {
 	struct sockaddr_in info;
 	socklen_t infoLength;
 	
-	
+	pthread_t acceptThread;
 };
 
 struct _pollCallback {
+	WebServerPollBlock block;
+};
+
+struct _PollUpdate{
+	struct pollfd descriptor;
+	//
+	// When block is null, means delete the poll observer
+	//
 	WebServerPollBlock block;
 };
 
@@ -40,29 +50,42 @@ struct _WebServer {
 	uint16_t numberOfServers;
 	
 	bool keepRunning;
-	
+
 	struct pollfd* pollDescriptors;
 	struct _pollCallback* pollCallbacks;
 	uint32_t numOfPollDescriptors;
 	uint32_t numOfPollDescriptorSlots;
+	int pollNeedsUpDateFd[2];
+	
+	Queue pollUpdateQueue;
 };
 
 static bool CreateServers(WebServer webServer, char* port);
 static Server CreateServer(WebServer webServer, struct addrinfo *info);
-static void ServerAcceptNewConnection(Server server);
+static void *ServerAcceptLoop(void* ptr);
+static void WebServerUpdatePollDescriptors(WebServer webServer);
 
 WebServer WebServerCreate(char* port)
 {
 	WebServer webServer = malloc(sizeof(struct _WebServer));
 	
-	WorkerThreadsInitialize(10);
+	WorkerThreadsInitialize(20);
 	
 	webServer->numOfPollDescriptorSlots = 10;
 	webServer->numOfPollDescriptors = 0;
 	webServer->pollDescriptors = malloc(sizeof(struct pollfd) * webServer->numOfPollDescriptorSlots);
 	webServer->pollCallbacks = malloc(sizeof(struct _pollCallback) * webServer->numOfPollDescriptorSlots);
+	webServer->pollUpdateQueue = QueueCreate();
+	pipe(webServer->pollNeedsUpDateFd);
+	setBlocking(webServer->pollNeedsUpDateFd[0], false);
+	setBlocking(webServer->pollNeedsUpDateFd[0], true);
 	
 	CreateServers(webServer, port);
+	
+	if (webServer->numberOfServers == 0) {
+		printf("Could not listen on any socket.\n");
+		return NULL;
+	}
 	
 	return webServer;
 }
@@ -71,23 +94,44 @@ void WebServerRunloop(WebServer webServer)
 {
 	webServer->keepRunning = true;
 	
+	WebServerRegisterPollForSocket(webServer, webServer->pollNeedsUpDateFd[0], POLLIN, ^(int revents){});
+	
 	while (webServer->keepRunning) {
-		int socksToHandle = poll(webServer->pollDescriptors, webServer->numOfPollDescriptors, 100000);
+		WebServerUpdatePollDescriptors(webServer);
 		
-		// for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
-		// 	printf("%d: fd %d, events %d, revents %d\n", i, webServer->pollDescriptors[i].fd, webServer->pollDescriptors[i].events, webServer->pollDescriptors[i].revents);
-		// }
+		int socksToHandle = poll(webServer->pollDescriptors, webServer->numOfPollDescriptors, 1000);
+		
+		WebServerUpdatePollDescriptors(webServer);
 		
 		if (socksToHandle < 0) {
 			perror("poll");
 			return;
 		}
-		else {
+		else if (socksToHandle > 0) {
 			for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
 				if (webServer->pollDescriptors[i].revents > 0) {
-					webServer->pollCallbacks[i].block(webServer->pollDescriptors[i].revents);
+					if (webServer->pollDescriptors[i].fd == webServer->pollNeedsUpDateFd[0]) {
+						char buffer[255];
+						// Just read it away
+						read(webServer->pollNeedsUpDateFd[0], &buffer, 255);
+						socksToHandle--;
+					}
+					else {
+					// Enqueue an unregister now, to let it be overriden by the block
+					WebServerUnregisterPollForSocket(webServer, webServer->pollDescriptors[i].fd);
+					
+					int revents = webServer->pollDescriptors[i].revents;
+					WebServerPollBlock block = Block_copy(webServer->pollCallbacks[i].block);
+					
+					WorkerThreadsEnqueue(^{
+						block(revents);
+						Block_release(block);
+					});
+					
 					webServer->pollDescriptors[i].revents = 0;
+
 					socksToHandle--;
+					}
 				}
 			}
 			
@@ -152,6 +196,14 @@ static Server CreateServer(WebServer webServer, struct addrinfo *info)
 		return NULL;
 	}
 		
+	static const int kOn = 1;
+	if (setsockopt(server->socket, SOL_SOCKET, SO_REUSEADDR, &kOn, sizeof(kOn)) < 0) {
+		perror("setsockopt");
+		close(server->socket);
+		free(server);
+		return NULL;
+	}
+	
 	if (bind(server->socket, info->ai_addr, info->ai_addrlen) < 0) {
 		close(server->socket);
 		free(server);
@@ -169,59 +221,103 @@ static Server CreateServer(WebServer webServer, struct addrinfo *info)
 	listen(server->socket, 300);
 	setBlocking(server->socket, false);
 	
-	WebServerRegisterPollForSocket(webServer, server->socket, POLLIN|POLLHUP, ^(int revents) {
-		ServerAcceptNewConnection(server);
-	});
+	if (pthread_create(&server->acceptThread, NULL, ServerAcceptLoop, server)) {
+		perror("pthread_create");
+	}
 	
 	return server;
 }
 
 void WebServerRegisterPollForSocket(WebServer webServer, int socket, int events, WebServerPollBlock block)
-{
-	for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
-		if (webServer->pollDescriptors[i].fd == socket) {
-			webServer->pollDescriptors[i].events = events;
-			if (webServer->pollCallbacks[i].block)
-				Block_release(webServer->pollCallbacks[i].block);
-			webServer->pollCallbacks[i].block = Block_copy(block);
-			return;
-		}
-	}
+{	
+	struct _PollUpdate* update = malloc(sizeof(struct _PollUpdate));
 	
-	if (webServer->numOfPollDescriptors >= webServer->numOfPollDescriptorSlots) {
-		webServer->numOfPollDescriptorSlots *= 2;
-		webServer->pollDescriptors = realloc(webServer->pollDescriptors, sizeof(struct pollfd) * webServer->numOfPollDescriptorSlots);
-		webServer->pollCallbacks = realloc(webServer->pollCallbacks, sizeof(struct _pollCallback) * webServer->numOfPollDescriptorSlots);
-	}
+	memset(update, 0, sizeof(struct _PollUpdate));
 	
-	webServer->pollDescriptors[webServer->numOfPollDescriptors].fd = socket;
-	webServer->pollDescriptors[webServer->numOfPollDescriptors].events = events;
-	webServer->pollCallbacks[webServer->numOfPollDescriptors].block = Block_copy(block);
+	update->descriptor.fd = socket;
+	update->descriptor.events = events;
+	update->block = Block_copy(block);
 	
-	webServer->numOfPollDescriptors++;
+	QueueEnqueue(webServer->pollUpdateQueue, update);
+	int i = 1;
+	write(webServer->pollNeedsUpDateFd[1], &i, 1);
 }
 
 void WebServerUnregisterPollForSocket(WebServer webServer, int socket)
 {
-	for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
-		if (webServer->pollDescriptors[i].fd == socket) {
-			if (webServer->pollCallbacks[i].block)
-				Block_release(webServer->pollCallbacks[i].block);
-			
-			if (i != webServer->numOfPollDescriptors - 1) {
-				memcpy(&webServer->pollDescriptors[i], &webServer->pollDescriptors[webServer->numOfPollDescriptors - 1], sizeof(struct pollfd));
-				memcpy(&webServer->pollCallbacks[i], &webServer->pollCallbacks[webServer->numOfPollDescriptors - 1], sizeof(struct pollfd));
+	struct _PollUpdate* update = malloc(sizeof(struct _PollUpdate));
+	
+	memset(update, 0, sizeof(struct _PollUpdate));
+	
+	update->descriptor.fd = socket;
+	
+	QueueEnqueue(webServer->pollUpdateQueue, update);
+	int i = 1;
+	write(webServer->pollNeedsUpDateFd[1], &i, 1);
+}
+
+void WebServerUpdatePollDescriptors(WebServer webServer) {
+	struct _PollUpdate* update;
+	
+	while ((update = QueueDequeue(webServer->pollUpdateQueue)) != NULL) {
+		// Add
+		if (update->block) {
+			bool found = false;
+			for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
+				if (webServer->pollDescriptors[i].fd == update->descriptor.fd) {
+					webServer->pollDescriptors[i].events = update->descriptor.events;
+					if (webServer->pollCallbacks[i].block)
+						Block_release(webServer->pollCallbacks[i].block);
+					webServer->pollCallbacks[i].block = update->block;
+					found = true;
+					break;
+				}
 			}
-			webServer->numOfPollDescriptors--;
-			return;
+	
+			if (!found) {
+				if (webServer->numOfPollDescriptors >= webServer->numOfPollDescriptorSlots) {
+					webServer->numOfPollDescriptorSlots *= 2;
+					webServer->pollDescriptors = realloc(webServer->pollDescriptors, sizeof(struct pollfd) * webServer->numOfPollDescriptorSlots);
+					webServer->pollCallbacks = realloc(webServer->pollCallbacks, sizeof(struct _pollCallback) * webServer->numOfPollDescriptorSlots);
+				}
+	
+				webServer->pollDescriptors[webServer->numOfPollDescriptors].fd = update->descriptor.fd;
+				webServer->pollDescriptors[webServer->numOfPollDescriptors].events = update->descriptor.events;
+				webServer->pollCallbacks[webServer->numOfPollDescriptors].block = update->block;
+	
+				webServer->numOfPollDescriptors++;
+			}
 		}
+		// Delete
+		else {
+			for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
+				if (webServer->pollDescriptors[i].fd == update->descriptor.fd) {
+					if (webServer->pollCallbacks[i].block)
+						Block_release(webServer->pollCallbacks[i].block);
+			
+					if (i != webServer->numOfPollDescriptors - 1) {
+						memcpy(&webServer->pollDescriptors[i], &webServer->pollDescriptors[webServer->numOfPollDescriptors - 1], sizeof(struct pollfd));
+						memcpy(&webServer->pollCallbacks[i], &webServer->pollCallbacks[webServer->numOfPollDescriptors - 1], sizeof(struct _pollCallback));
+					}
+						
+					webServer->numOfPollDescriptors--;
+					break;
+				}
+			}
+		}
+		free(update);
 	}
 }
 
-static void ServerAcceptNewConnection(Server server)
-{
-	HTTPConnection connection = HTTPConnectionCreate(server);
-	#pragma unused(connection)
+static void* ServerAcceptLoop(void* ptr)
+{	
+	Server server = ptr;
+	
+	setBlocking(server->socket, true);
+	while (true) {
+		HTTPConnection connection = HTTPConnectionCreate(server);
+		#pragma unused(connection)
+	}
 }
 
 int ServerGetSocket(Server server)

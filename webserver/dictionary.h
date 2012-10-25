@@ -17,7 +17,7 @@ void* DictionaryGet(Dictionary dict, const char* key);
 // Note you mus ensure that the key and the value
 // is keept valid.
 //
-void DictionarySet(Dictionary dict, const char* key, void* value);
+void DictionarySet(Dictionary dict, const char* key, const void* value);
 
 //
 // Destroys the dictionary and frees all

@@ -5,7 +5,7 @@
 
 struct _DictionaryEntry {
 	const char* key;
-	void* value;
+	const void* value;
 	
 	struct _DictionaryEntry* leftEntry;
 	struct _DictionaryEntry* rightEntry;
@@ -37,7 +37,7 @@ void* DictionaryGet(Dictionary dict, const char* key)
 		int cmp = strcmp(entry->key, key);
 		
 		if (cmp == 0)
-			return entry->value;
+			return (void*)entry->value;
 		else if (cmp < 0)
 			entry = entry->leftEntry;
 		else
@@ -47,7 +47,7 @@ void* DictionaryGet(Dictionary dict, const char* key)
 	return NULL;
 }
 
-void DictionarySet(Dictionary dict, const char* key, void* value)
+void DictionarySet(Dictionary dict, const char* key, const void* value)
 {
 	struct _DictionaryEntry* entry = dict->headEntry;
 	

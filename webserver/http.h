@@ -5,6 +5,7 @@
 
 typedef struct _HTTPRequest* HTTPRequest; 
 typedef struct _HTTPConnection* HTTPConnection;
+typedef struct _HTTPResponse* HTTPResponse;
 
 typedef enum { 
 	kHTTPMethodGet,
@@ -104,3 +105,46 @@ HTTPConnection HTTPConnectionCreate(Server server);
 // Destroys the connection
 //
 void HTTPConnectionDestroy(HTTPConnection connection);
+
+//
+// Creates a new http response associated with an
+// given connection
+//
+HTTPResponse HTTPResponseCreate(HTTPConnection connection);
+
+//
+// Destroys a http response
+//
+void HTTPResponseDestroy(HTTPResponse response);
+
+//
+// Set a given status code
+//
+void HTTPResponseSetStatusCode(HTTPResponse response, HTTPStatusCode code);
+
+//
+// Set a given value for the header field.
+//
+void HTTPResponseSetHeaderValue(HTTPResponse response, const char* key, const char* value);
+
+//
+// Set a string to be delivered as response.
+//
+// This also sets the Length header and frees string upon completion.
+//
+void HTTPResponseSetResponseString(HTTPResponse response, char* string);
+
+//
+// Set a file descriptor to be delivered as response
+//
+// This also sets the length header if fd supports it and closes
+// the fd upon completion
+//
+void HTTPResponseSetResponseFileDescriptor(HTTPResponse response, int fd);
+
+//
+// Sends the response over the connection.
+//
+// Warning: this blocks.
+//
+void HTTPResponseSendComplete(HTTPResponse response);

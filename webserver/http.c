@@ -4,12 +4,14 @@
 #include "dictionary.h"
 #include "helper.h"
 #include "workerthread.h"
+#include "retainable.h"
 
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <poll.h>
+#include <assert.h>
 
 static const char* kHTTPLineDelimiter = "\r\n";
 static const char* kHTTPContentDelimiter = "\r\n\r\n";
@@ -50,7 +52,13 @@ struct _HTTPRequest {
 	void* inputBakcend;
 };
 
+static char* kHTTPConnectionMagic = "_HTTPConnection";
+static char* kHTTPConnectionDeadMagic = ":(";
+
 struct _HTTPConnection {
+	Retainable retainable;
+	
+	char *magic;
 	int socket;
 	
 	Server server;
@@ -65,6 +73,31 @@ struct _HTTPConnection {
 	size_t bufferLength;
 };
 
+struct _HTTPResponse {
+	//
+	// The connection this resposne is accosiated to
+	//
+	HTTPConnection connection;
+	
+	//
+	// The http status code to send
+	//
+	HTTPStatusCode code;
+	
+	//
+	// Headers
+	//
+	Dictionary headerDictionary;
+	
+	//
+	// Response
+	// one of the following is valid
+	//
+	
+	char* responseString;
+	int responseFileDescriptor;
+};
+
 static void HTTPRequestParse(HTTPRequest request, char* buffer);
 static void HTTPRequestParseActionLine(HTTPRequest request, char* line);
 static void HTTPRequestParseHeader(HTTPRequest request, char* buffer);
@@ -72,6 +105,9 @@ static void HTTPRequestParseHeaderLine(HTTPRequest request, char* line);
 
 static void HTTPConnectionReadRequest(HTTPConnection connection);
 static void HTTPProcessRequest(HTTPConnection connection);
+
+// Convienience method for an error condition
+static void HTTPResponseSendError(HTTPConnection connection, HTTPStatusCode code, char* responseString);
 
 bool HTTPCanParseBuffer(char* buffer) {
 	if (strstr(buffer, kHTTPContentDelimiter))
@@ -170,27 +206,35 @@ static void HTTPRequestParseHeaderLine(HTTPRequest request, char* line)
 
 HTTPConnection HTTPConnectionCreate(Server server)
 {
+	assert(server);
+	
 	HTTPConnection connection = malloc(sizeof(struct _HTTPConnection));
 	
 	memset(connection, 0, sizeof(struct _HTTPConnection));
+	
+	RetainableInitialize(&connection->retainable, (void (*)(void *))HTTPConnectionDestroy);
+	connection->magic = kHTTPConnectionMagic;
 	
 	connection->server = server;
 	connection->infoLength = sizeof(connection->info);
 	connection->socket = accept(ServerGetSocket(server), (struct sockaddr*)&connection->info, &connection->infoLength);
 	
 	if (connection->socket < 0) {
-		HTTPConnectionDestroy(connection);
+		Release(connection);
 		return NULL;
 	}
 	
 	setBlocking(connection->socket, false);
 	
-	printf("New connection from %s...\n", stringFromSockaddrIn(&connection->info));
+	printf("New connection:%p from %s...\n", connection, stringFromSockaddrIn(&connection->info));
 	
 	connection->state = HTTPConnectionReadingRequest;
+
+	// For the block
+	Retain(connection);
 	WebServerRegisterPollForSocket(ServerGetWebServer(server), connection->socket, POLLIN|POLLHUP, ^(int revents) {
 		if ((revents & POLLHUP) > 0) {
-			HTTPConnectionDestroy(connection);
+			Release(connection);
 			return;
 		}
 	
@@ -201,35 +245,44 @@ HTTPConnection HTTPConnectionCreate(Server server)
 		case HTTPConnectionProcessingRequest:
 			break;
 		}
+		Release(connection);
 	});
 	
+	// No release
 	return connection;
 }
 
 void HTTPConnectionDestroy(HTTPConnection connection)
 {
+	assert(connection->magic == kHTTPConnectionMagic);
 	if (connection->buffer) {
 		free(connection->buffer);
 	}
 	
 	if (connection->socket) {
-		printf("Close connection from %s...\n", stringFromSockaddrIn(&connection->info));
+		printf("Close connection:%p from %s...\n", connection, stringFromSockaddrIn(&connection->info));
 		WebServerUnregisterPollForSocket(ServerGetWebServer(connection->server), connection->socket);
 		close(connection->socket);
 	}
 	
+	printf("Dealloc connection:%p\n", connection);
+	connection->magic = kHTTPConnectionDeadMagic;
 	free(connection);
 }
 
 static void HTTPConnectionReadRequest(HTTPConnection connection)
 {
+	assert(connection->magic == kHTTPConnectionMagic);
+	
 	if (!connection->buffer) {
 		connection->bufferFilled = 0;
 		connection->bufferLength = 255;
 		connection->buffer = malloc(connection->bufferLength);
 	}
 	
-	size_t avaiableBuffer;
+	assert(connection->buffer);
+	
+	ssize_t avaiableBuffer;
 	ssize_t readBuffer;
 	do {
 		avaiableBuffer = connection->bufferLength - connection->bufferFilled;
@@ -237,12 +290,16 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		
 		// Not a lot of buffer, expand it
 		if (avaiableBuffer < 10) {
-			connection->bufferLength *= 255;
+			connection->bufferLength *= 2;
 			connection->buffer = realloc(connection->buffer, connection->bufferLength);
 			avaiableBuffer = connection->bufferLength - connection->bufferFilled;
 		}
 		
+		assert(connection->buffer);
+		
 		readBuffer = recv(connection->socket, connection->buffer + connection->bufferFilled, avaiableBuffer, 0);
+		
+		assert(connection->bufferFilled + readBuffer <= connection->bufferLength);
 		
 		if (readBuffer < 0) {
 			perror("recv");
@@ -254,27 +311,110 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 			HTTPConnectionDestroy(connection);
 			return;
 		}
-		printf("Read %zd\n", readBuffer);
 		
 		connection->bufferFilled += readBuffer;
 	} while (readBuffer == avaiableBuffer);
 	
 	if (HTTPCanParseBuffer(connection->buffer)) {
 		connection->state = HTTPConnectionProcessingRequest;
-		WebServerUnregisterPollForSocket(ServerGetWebServer(connection->server), connection->socket);
+		
+		// For the block
+		Retain(connection);
 		WorkerThreadsEnqueue(^{
 			HTTPProcessRequest(connection);
+			Release(connection);
+		});
+	}
+	else {
+		// For the block
+		Retain(connection);
+		WebServerRegisterPollForSocket(ServerGetWebServer(connection->server), connection->socket, POLLIN|POLLHUP, ^(int revents) {
+			if ((revents & POLLHUP) > 0) {
+				Release(connection);
+				return;
+			}
+	
+			switch(connection->state) {
+			case HTTPConnectionReadingRequest:
+				HTTPConnectionReadRequest(connection);
+				break;
+			case HTTPConnectionProcessingRequest:
+				break;
+			}
+			Release(connection);
 		});
 	}
 }
 
 static void HTTPProcessRequest(HTTPConnection connection)
 {
+	assert(connection->magic == kHTTPConnectionMagic);
+	
 	HTTPRequest request = HTTPRequestCreate(connection->buffer);
 	
-	char* response = "HTTP/1.0 200 OK\r\n\r\nhallo";
-	send(connection->socket, response, strlen(response), 0);
+	/*if (request->method != kHTTPMethodGet) {
+		HTTPResponseSendError(connection, kHTTPErrorNotImplemented, "Unkown method");
+		return;
+	}*/
 	
-	HTTPConnectionDestroy(connection);
+	char* response = "HTTP/1.0 200 OK\r\n\r\nhallo";
+	setBlocking(connection->socket, true);
+	send(connection->socket, response, strlen(response),0);
+	HTTPResponseSendError(connection, kHTTPOK, response);
+	
+	close(connection->socket);
+	//HTTPConnectionDestroy(connection);
 	HTTPRequestDestroy(request);
+}
+
+HTTPResponse HTTPResponseCreate(HTTPConnection connection)
+{
+	HTTPResponse response = malloc(sizeof(struct _HTTPResponse));
+	
+	memset(response, 0, sizeof(struct _HTTPResponse));
+	
+	return response;
+}
+
+void HTTPResponseDestroy(HTTPResponse response)
+{
+	free(response);
+}
+
+void HTTPResponseSetStatusCode(HTTPResponse response, HTTPStatusCode code)
+{
+	response->code = code;
+}
+
+void HTTPResponseSetHeaderValue(HTTPResponse response, const char* key, const char* value)
+{
+	DictionarySet(response->headerDictionary, key, value);
+}
+
+void HTTPResponseSetResponseString(HTTPResponse response, char* string)
+{
+	response->responseString = string;
+}
+
+void HTTPResponseSetResponseFileDescriptor(HTTPResponse response, int fd)
+{
+	response->responseFileDescriptor = fd;
+}
+
+static void HTTPResponseSendError(HTTPConnection connection, HTTPStatusCode code, char* responseString)
+{
+	HTTPResponse response = HTTPResponseCreate(connection);
+	
+	HTTPResponseSetResponseString(response, responseString);
+	
+	HTTPResponseDestroy(response);
+}
+
+void HTTPResponseSendComplete(HTTPResponse response)
+{
+	setBlocking(response->connection->socket, true);
+	
+	
+	
+	setBlocking(response->connection->socket, false);
 }
