@@ -3,12 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <Block.h>
 
 typedef struct _WorkPackage* WorkPackage;
 
 struct _WorkPackage {
-	Worker worker;
-	void* userInfo;
+	WorkerBlock block;
 	
 	WorkPackage next;
 };
@@ -47,13 +47,12 @@ void WorkerThreadsInitialize(int maxNumThreads)
 	}
 }
 
-void WorkerThreadsEnqueue(Worker worker, void* userInfo)
+void WorkerThreadsEnqueue(WorkerBlock block)
 {
 	WorkPackage package = malloc(sizeof(struct _WorkPackage));
 	
 	memset(package, 0, sizeof(struct _WorkPackage));
-	package->worker = worker;
-	package->userInfo = userInfo;
+	package->block = Block_copy(block);
 	
 	pthread_mutex_lock(&workerThreads->queueMutex);
 	if (workerThreads->queue) {
@@ -85,7 +84,8 @@ static void* WorkerSchedule()
 			workerThreads->queueEnd = NULL;
 		pthread_mutex_unlock(&workerThreads->queueMutex);
 		
-		package->worker(package->userInfo);
+		package->block();
+		Block_release(package->block);
 		free(package);
 	}
 }

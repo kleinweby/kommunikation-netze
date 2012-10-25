@@ -70,10 +70,8 @@ static void HTTPRequestParseActionLine(HTTPRequest request, char* line);
 static void HTTPRequestParseHeader(HTTPRequest request, char* buffer);
 static void HTTPRequestParseHeaderLine(HTTPRequest request, char* line);
 
-static void HTTPConnectionCallback(int revents, void* userInfo);
 static void HTTPConnectionReadRequest(HTTPConnection connection);
 static void HTTPProcessRequest(HTTPConnection connection);
-static void HTTPProcessRequestWorker(void* userInfo);
 
 bool HTTPCanParseBuffer(char* buffer) {
 	if (strstr(buffer, kHTTPContentDelimiter))
@@ -190,7 +188,20 @@ HTTPConnection HTTPConnectionCreate(Server server)
 	printf("New connection from %s...\n", stringFromSockaddrIn(&connection->info));
 	
 	connection->state = HTTPConnectionReadingRequest;
-	WebServerRegisterPollForSocket(ServerGetWebServer(server), connection->socket, POLLIN|POLLHUP, HTTPConnectionCallback, connection);
+	WebServerRegisterPollForSocket(ServerGetWebServer(server), connection->socket, POLLIN|POLLHUP, ^(int revents) {
+		if ((revents & POLLHUP) > 0) {
+			HTTPConnectionDestroy(connection);
+			return;
+		}
+	
+		switch(connection->state) {
+		case HTTPConnectionReadingRequest:
+			HTTPConnectionReadRequest(connection);
+			break;
+		case HTTPConnectionProcessingRequest:
+			break;
+		}
+	});
 	
 	return connection;
 }
@@ -208,24 +219,6 @@ void HTTPConnectionDestroy(HTTPConnection connection)
 	}
 	
 	free(connection);
-}
-
-static void HTTPConnectionCallback(int revents, void* userInfo)
-{
-	HTTPConnection connection = userInfo;
-	
-	if ((revents & POLLHUP) > 0) {
-		HTTPConnectionDestroy(connection);
-		return;
-	}
-	
-	switch(connection->state) {
-	case HTTPConnectionReadingRequest:
-		HTTPConnectionReadRequest(connection);
-		break;
-	case HTTPConnectionProcessingRequest:
-		break;
-	}
 }
 
 static void HTTPConnectionReadRequest(HTTPConnection connection)
@@ -268,7 +261,10 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 	
 	if (HTTPCanParseBuffer(connection->buffer)) {
 		connection->state = HTTPConnectionProcessingRequest;
-		WorkerThreadsEnqueue(HTTPProcessRequestWorker, connection);
+		WebServerUnregisterPollForSocket(ServerGetWebServer(connection->server), connection->socket);
+		WorkerThreadsEnqueue(^{
+			HTTPProcessRequest(connection);
+		});
 	}
 }
 
@@ -281,9 +277,4 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	
 	HTTPConnectionDestroy(connection);
 	HTTPRequestDestroy(request);
-}
-
-static void HTTPProcessRequestWorker(void* userInfo)
-{
-	HTTPProcessRequest(userInfo);
 }

@@ -19,8 +19,8 @@ void WebServerRunloop(WebServer server);
 //
 //
 //
-typedef void(*WebServerPollCallback)(int revents, void* userInfo);
-void WebServerRegisterPollForSocket(WebServer webServer, int socket, int events, WebServerPollCallback callback, void* userInfo);
+typedef void(^WebServerPollBlock)(int revents);
+void WebServerRegisterPollForSocket(WebServer webServer, int socket, int events, WebServerPollBlock block);
 void WebServerUnregisterPollForSocket(WebServer webServer, int socket);
 
 //

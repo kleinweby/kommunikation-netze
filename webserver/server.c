@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <poll.h>
+#include <Block.h>
+#include <assert.h>
 
 struct _Server {
 	WebServer webServer;
@@ -30,8 +32,7 @@ struct _Server {
 };
 
 struct _pollCallback {
-	WebServerPollCallback callback;
-	void* userInfo;
+	WebServerPollBlock block;
 };
 
 struct _WebServer {
@@ -48,7 +49,6 @@ struct _WebServer {
 
 static bool CreateServers(WebServer webServer, char* port);
 static Server CreateServer(WebServer webServer, struct addrinfo *info);
-static void ServerAcceptNewConnectionCallback(int revents, void* userInfo);
 static void ServerAcceptNewConnection(Server server);
 
 WebServer WebServerCreate(char* port)
@@ -85,7 +85,17 @@ void WebServerRunloop(WebServer webServer)
 		else {
 			for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
 				if (webServer->pollDescriptors[i].revents > 0) {
-					webServer->pollCallbacks[i].callback(webServer->pollDescriptors[i].revents, webServer->pollCallbacks[i].userInfo);
+					webServer->pollCallbacks[i].block(webServer->pollDescriptors[i].revents);
+					webServer->pollDescriptors[i].revents = 0;
+					socksToHandle--;
+				}
+			}
+			
+			if (socksToHandle != 0) {
+				printf("Not handled %d\n", socksToHandle);
+				for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
+					if (webServer->pollDescriptors[i].revents > 0)
+					printf("%d: fd %d, events %d, revents %d\n", i, webServer->pollDescriptors[i].fd, webServer->pollDescriptors[i].events, webServer->pollDescriptors[i].revents);
 				}
 			}
 		}
@@ -159,18 +169,21 @@ static Server CreateServer(WebServer webServer, struct addrinfo *info)
 	listen(server->socket, 300);
 	setBlocking(server->socket, false);
 	
-	WebServerRegisterPollForSocket(webServer, server->socket, POLLIN|POLLHUP, ServerAcceptNewConnectionCallback, server);
+	WebServerRegisterPollForSocket(webServer, server->socket, POLLIN|POLLHUP, ^(int revents) {
+		ServerAcceptNewConnection(server);
+	});
 	
 	return server;
 }
 
-void WebServerRegisterPollForSocket(WebServer webServer, int socket, int events, WebServerPollCallback callback, void* userInfo)
+void WebServerRegisterPollForSocket(WebServer webServer, int socket, int events, WebServerPollBlock block)
 {
 	for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
 		if (webServer->pollDescriptors[i].fd == socket) {
 			webServer->pollDescriptors[i].events = events;
-			webServer->pollCallbacks[i].callback = callback;
-			webServer->pollCallbacks[i].userInfo = userInfo;
+			if (webServer->pollCallbacks[i].block)
+				Block_release(webServer->pollCallbacks[i].block);
+			webServer->pollCallbacks[i].block = Block_copy(block);
 			return;
 		}
 	}
@@ -183,8 +196,7 @@ void WebServerRegisterPollForSocket(WebServer webServer, int socket, int events,
 	
 	webServer->pollDescriptors[webServer->numOfPollDescriptors].fd = socket;
 	webServer->pollDescriptors[webServer->numOfPollDescriptors].events = events;
-	webServer->pollCallbacks[webServer->numOfPollDescriptors].callback = callback;
-	webServer->pollCallbacks[webServer->numOfPollDescriptors].userInfo = userInfo;
+	webServer->pollCallbacks[webServer->numOfPollDescriptors].block = Block_copy(block);
 	
 	webServer->numOfPollDescriptors++;
 }
@@ -193,17 +205,15 @@ void WebServerUnregisterPollForSocket(WebServer webServer, int socket)
 {
 	for(int i = 0; i < webServer->numOfPollDescriptors; i++) {
 		if (webServer->pollDescriptors[i].fd == socket) {
+			if (webServer->pollCallbacks[i].block)
+				Block_release(webServer->pollCallbacks[i].block);
+			
 			memmove(&webServer->pollDescriptors[i], &webServer->pollDescriptors[i+1], sizeof(struct pollfd) * (webServer->numOfPollDescriptors - i));
 			memmove(&webServer->pollCallbacks[i], &webServer->pollCallbacks[i+1], sizeof(struct _pollCallback) * (webServer->numOfPollDescriptors - i));
 			webServer->numOfPollDescriptors--;
 			return;
 		}
 	}
-}
-
-static void ServerAcceptNewConnectionCallback(int revents, void* userInfo)
-{
-	ServerAcceptNewConnection(userInfo);
 }
 
 static void ServerAcceptNewConnection(Server server)
