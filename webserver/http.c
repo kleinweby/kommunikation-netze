@@ -214,6 +214,11 @@ static void HTTPConnectionCallback(int revents, void* userInfo)
 {
 	HTTPConnection connection = userInfo;
 	
+	if ((revents & POLLHUP) > 0) {
+		HTTPConnectionDestroy(connection);
+		return;
+	}
+	
 	switch(connection->state) {
 	case HTTPConnectionReadingRequest:
 		HTTPConnectionReadRequest(connection);
@@ -256,6 +261,7 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 			HTTPConnectionDestroy(connection);
 			return;
 		}
+		printf("Read %zd\n", readBuffer);
 		
 		connection->bufferFilled += readBuffer;
 	} while (readBuffer == avaiableBuffer);
