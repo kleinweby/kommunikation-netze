@@ -99,7 +99,7 @@ void HTTPRequestDestroy(HTTPRequest request);
 //
 // Creates and accepts a new http connection
 //
-HTTPConnection HTTPConnectionCreate(Server server);
+HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr info);
 
 //
 // Destroys the connection

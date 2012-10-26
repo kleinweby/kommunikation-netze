@@ -203,7 +203,7 @@ static void HTTPRequestParseHeaderLine(HTTPRequest request, char* line)
 	DictionarySet(request->headerDictionary, key, value);
 }
 
-HTTPConnection HTTPConnectionCreate(Server server)
+HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr info)
 {
 	assert(server);
 	
@@ -215,13 +215,9 @@ HTTPConnection HTTPConnectionCreate(Server server)
 	connection->magic = kHTTPConnectionMagic;
 	
 	connection->server = server;
+	memcpy(&connection->info, &info, sizeof(struct sockaddr_in));
+	connection->socket = socket;
 	connection->infoLength = sizeof(connection->info);
-	connection->socket = accept(ServerGetSocket(server), (struct sockaddr*)&connection->info, &connection->infoLength);
-	
-	if (connection->socket < 0) {
-		Release(connection);
-		return NULL;
-	}
 	
 	setBlocking(connection->socket, false);
 	
@@ -234,6 +230,8 @@ HTTPConnection HTTPConnectionCreate(Server server)
 	PollRegister(ServerGetPoll(connection->server), connection->socket, 
 		POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(int revents) {
 			if ((revents & POLLHUP) > 0) {
+				close(connection->socket);
+				connection->socket = 0;
 				Release(connection);
 				return;
 			}
@@ -332,6 +330,8 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		PollRegister(ServerGetPoll(connection->server), connection->socket, 
 			POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(int revents) {
 				if ((revents & POLLHUP) > 0) {
+					close(connection->socket);
+					connection->socket = 0;
 					Release(connection);
 					return;
 				}

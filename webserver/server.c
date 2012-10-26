@@ -154,8 +154,16 @@ static Server CreateServer(WebServer webServer, struct addrinfo *info)
 	listen(server->socket, 300);
 	
 	PollRegister(server->webServer->poll, server->socket, POLLIN, kPollRepeatFlag, NULL, ^(int revents) {
-		HTTPConnection connection = HTTPConnectionCreate(server);
-		#pragma unused(connection)
+		struct sockaddr info;
+		socklen_t infoSize = sizeof(info);
+		int socket = accept(server->socket, &info, &infoSize);
+		
+		if (socket) {
+			Dispatch(server->webServer->inputQueue, ^{
+				HTTPConnection connection = HTTPConnectionCreate(server, socket, info);
+				#pragma unused(connection)
+			});
+		}
 	});
 	
 	return server;
