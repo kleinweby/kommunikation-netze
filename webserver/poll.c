@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <Block.h>
+#include <assert.h>
 
 struct _PollInfo {
 	PollFlags flags;
@@ -120,6 +121,8 @@ static void* PollThread(void* ptr)
 	Poll p = ptr;
 	int socksToHandle;
 	
+	PollRegister(p, p->updateFDs[0], POLLIN, kPollRepeatFlag, NULL, ^(int revents){});
+	
 	for (;;) {
 		PollApplyUpdates(p);
 		
@@ -140,6 +143,7 @@ static void* PollThread(void* ptr)
 					// We need to enqueue the update before to let the block
 					// reregister itself
 					if ((p->pollInfos[i].flags & kPollRepeatFlag) == 0) {
+						assert(p->updateFDs[0] != p->polls[i].fd);
 						PollUnregister(p, p->polls[i].fd);
 					}
 					
