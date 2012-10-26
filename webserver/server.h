@@ -2,6 +2,9 @@
 #ifndef _SERVER_H_
 #define _SERVER_H_
 
+#include "DispatchQueue.h"
+#include "Poll.h"
+
 typedef struct _WebServer* WebServer;
 typedef struct _Server* Server;
 
@@ -17,17 +20,36 @@ WebServer WebServerCreate(char* port);
 void WebServerRunloop(WebServer server);
 
 //
-//
-//
-typedef void(^WebServerPollBlock)(int revents);
-void WebServerRegisterPollForSocket(WebServer webServer, int socket, int events, WebServerPollBlock block);
-void WebServerUnregisterPollForSocket(WebServer webServer, int socket);
-
-//
 // Return the server socket
 //
 int ServerGetSocket(Server server);
 
+//
+// Return the queue that should be used
+// for input reading from the client
+//
+DispatchQueue ServerGetInputDispatchQueue(Server server);
+
+//
+// Return the queue that should be used
+// for output writing from the client
+//
+DispatchQueue ServerGetOutputDispatchQueue(Server server);
+
+//
+// Return the queue that should be used
+// for processing
+//
+DispatchQueue ServerGetProcessingDispatchQueue(Server server);
+
+//
+// Return the poll that should be used
+//
+Poll ServerGetPoll(Server server);
+
+//
+// Get the greater webserver of a specifc server
+//
 WebServer ServerGetWebServer(Server server);
 
 #endif /* _SERVER_H_ */

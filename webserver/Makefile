@@ -5,7 +5,7 @@ LDFLAGS=-pthread
 # Not the best but should work
 HAS_NATIVE_BLOCKS=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
 
-OBJS=http.o test.o str_helper.o dictionary.o server.o helper.o workerthread.o queue.o retainable.o
+OBJS=http.o test.o str_helper.o dictionary.o server.o helper.o queue.o retainable.o dispatchqueue.o poll.o
 
 ifneq ($(HAS_NATIVE_BLOCKS), 1)
 OBJS+= BlocksRuntime/libBlocksRuntime.a

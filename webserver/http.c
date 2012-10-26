@@ -3,7 +3,6 @@
 #include "str_helper.h"
 #include "dictionary.h"
 #include "helper.h"
-#include "workerthread.h"
 #include "retainable.h"
 
 #include <string.h>
@@ -232,21 +231,23 @@ HTTPConnection HTTPConnectionCreate(Server server)
 
 	// For the block
 	Retain(connection);
-	WebServerRegisterPollForSocket(ServerGetWebServer(server), connection->socket, POLLIN|POLLHUP, ^(int revents) {
-		if ((revents & POLLHUP) > 0) {
-			Release(connection);
-			return;
-		}
+	PollRegister(ServerGetPoll(connection->server), connection->socket, 
+		POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(int revents) {
+			if ((revents & POLLHUP) > 0) {
+				Release(connection);
+				return;
+			}
 	
-		switch(connection->state) {
-		case HTTPConnectionReadingRequest:
-			HTTPConnectionReadRequest(connection);
-			break;
-		case HTTPConnectionProcessingRequest:
-			break;
-		}
-		Release(connection);
-	});
+			switch(connection->state) {
+			case HTTPConnectionReadingRequest:
+				HTTPConnectionReadRequest(connection);
+				break;
+			case HTTPConnectionProcessingRequest:
+				break;
+			}
+			Release(connection);
+		});
+	
 	
 	// No release
 	return connection;
@@ -261,7 +262,7 @@ void HTTPConnectionDestroy(HTTPConnection connection)
 	
 	if (connection->socket) {
 		printf("Close connection:%p from %s...\n", connection, stringFromSockaddrIn(&connection->info));
-		WebServerUnregisterPollForSocket(ServerGetWebServer(connection->server), connection->socket);
+		PollUnregister(ServerGetPoll(connection->server), connection->socket);
 		close(connection->socket);
 	}
 	
@@ -320,7 +321,7 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		
 		// For the block
 		Retain(connection);
-		WorkerThreadsEnqueue(^{
+		Dispatch(ServerGetProcessingDispatchQueue(connection->server), ^{
 			HTTPProcessRequest(connection);
 			Release(connection);
 		});
@@ -328,21 +329,22 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 	else {
 		// For the block
 		Retain(connection);
-		WebServerRegisterPollForSocket(ServerGetWebServer(connection->server), connection->socket, POLLIN|POLLHUP, ^(int revents) {
-			if ((revents & POLLHUP) > 0) {
-				Release(connection);
-				return;
-			}
+		PollRegister(ServerGetPoll(connection->server), connection->socket, 
+			POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(int revents) {
+				if ((revents & POLLHUP) > 0) {
+					Release(connection);
+					return;
+				}
 	
-			switch(connection->state) {
-			case HTTPConnectionReadingRequest:
-				HTTPConnectionReadRequest(connection);
-				break;
-			case HTTPConnectionProcessingRequest:
-				break;
-			}
-			Release(connection);
-		});
+				switch(connection->state) {
+				case HTTPConnectionReadingRequest:
+					HTTPConnectionReadRequest(connection);
+					break;
+				case HTTPConnectionProcessingRequest:
+					break;
+				}
+				Release(connection);
+			});
 	}
 }
 
