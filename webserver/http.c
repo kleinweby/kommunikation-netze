@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <poll.h>
 #include <assert.h>
+#include <sys/stat.h>
+#include <sys/param.h>
 
 static const char* kHTTPLineDelimiter = "\r\n";
 static const char* kHTTPContentDelimiter = "\r\n\r\n";
@@ -74,6 +76,19 @@ struct _HTTPConnection {
 	size_t bufferLength;
 };
 
+typedef enum {
+	kHTTPResponseSendingNotStarted,
+	kHTTPResponseSendingStatusLine,
+	kHTTPResponseSendingHeaders,
+	kHTTPResponseSendingBody,
+	kHTTPResponseSendingComplete
+} HTTPResponseSendStatus;
+
+struct _HTTPResponseSendStatusLineInfo {
+	char* statusLine;
+	size_t sentBytes;
+};
+
 struct _HTTPResponse {
 	Retainable retainable;
 	
@@ -99,6 +114,15 @@ struct _HTTPResponse {
 	
 	char* responseString;
 	int responseFileDescriptor;
+	
+	//
+	// Manage sending
+	//
+	HTTPResponseSendStatus sendStatus;
+	//
+	// Extra status for sending by the current step
+	//
+	void* sendStatusExtra;
 };
 
 static void HTTPRequestParse(HTTPRequest request, char* buffer);
@@ -111,9 +135,23 @@ static void HTTPConnectionReadRequest(HTTPConnection connection);
 static void HTTPConnectionDealloc(void* ptr);
 static void HTTPProcessRequest(HTTPConnection connection);
 
+//
+// Resolved a path. Path is to be freed when no longer needed.
+//
+static char* HTTPResolvePath(HTTPRequest request, char* path);
+
 // Convienience method for an error condition
-static void HTTPResponseSendError(HTTPConnection connection, HTTPStatusCode code, char* responseString);
+static void HTTPResponseSendError(HTTPResponse response, HTTPStatusCode code);
 static void HTTPResponseDealloc(void* ptr);
+
+//
+// If returns false, you need to call this method
+// again when the socket is able to write data
+//
+static bool HTTPResponseSend(HTTPResponse response);
+static bool HTTPResponseSendStatusLine(HTTPResponse response);
+static bool HTTPResponseSendHeaders(HTTPResponse response);
+static bool HTTPResponseSendBody(HTTPResponse response);
 
 bool HTTPCanParseBuffer(char* buffer) {
 	if (strstr(buffer, kHTTPContentDelimiter))
@@ -172,11 +210,10 @@ static void HTTPRequestParse(HTTPRequest request, char* buffer)
 static void HTTPRequestParseActionLine(HTTPRequest request, char* line)
 {
 	char* methodString;
-	char* path;
 	char* versionString;
 	
 	methodString = strsep_ext(&line, " ");
-	path = strsep_ext(&line, " ");
+	request->path = strsep_ext(&line, " ");
 	versionString = strsep_ext(&line, " ");
 	
 	if (strncmp(methodString, "GET", strlen("GET")) == 0)
@@ -369,20 +406,43 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	assert(connection->magic == kHTTPConnectionMagic);
 	
 	HTTPRequest request = HTTPRequestCreate(connection->buffer);
+	HTTPResponse response = HTTPResponseCreate(connection);
+	struct stat stat;
+	char* resolvedPath;
 	
-	/*if (request->method != kHTTPMethodGet) {
-		HTTPResponseSendError(connection, kHTTPErrorNotImplemented, "Unkown method");
+	// We only support get for now
+	if (request->method != kHTTPMethodGet) {
+		HTTPResponseSendError(response, kHTTPErrorNotImplemented);
+		
+		Release(request);
 		return;
-	}*/
+	}
 	
-	char* response = "HTTP/1.0 200 OK\r\n\r\nhallo";
+	resolvedPath = HTTPResolvePath(request, request->path);
+	
+	printf("Real path: %s\n", resolvedPath);
+	
+	// Check the file
+	if (lstat(resolvedPath, &stat) < 0) {
+		HTTPResponseSendError(response, kHTTPBadNotFound);
+		perror("lstat");
+		Release(request);
+		return;
+	}
+	
+	if (!S_ISREG(stat.st_mode)) {
+		HTTPResponseSendError(response, kHTTPBadNotFound);
+		printf("not regular\n");
+		Release(request);
+		return;
+	}
+	
+	char* r = "HTTP/1.0 200 OK\r\n\r\nhallo";
 	setBlocking(connection->socket, true);
-	send(connection->socket, response, strlen(response),0);
-	HTTPResponseSendError(connection, kHTTPOK, response);
+	send(connection->socket, r, strlen(r),0);
 	
 	close(connection->socket);
 	//HTTPConnectionDestroy(connection);
-	Release(request);
 }
 
 HTTPResponse HTTPResponseCreate(HTTPConnection connection)
@@ -392,6 +452,8 @@ HTTPResponse HTTPResponseCreate(HTTPConnection connection)
 	memset(response, 0, sizeof(struct _HTTPResponse));
 	
 	RetainableInitialize(&response->retainable, HTTPResponseDealloc);
+	
+	response->connection = connection;
 	
 	return response;
 }
@@ -423,12 +485,13 @@ void HTTPResponseSetResponseFileDescriptor(HTTPResponse response, int fd)
 	response->responseFileDescriptor = fd;
 }
 
-static void HTTPResponseSendError(HTTPConnection connection, HTTPStatusCode code, char* responseString)
+static void HTTPResponseSendError(HTTPResponse response, HTTPStatusCode code)
 {
-	HTTPResponse response = HTTPResponseCreate(connection);
+	HTTPResponseSetStatusCode(response, code);
 	
-	HTTPResponseSetResponseString(response, responseString);
+	HTTPResponseSetResponseString(response, "Error");
 	
+	HTTPResponseSendComplete(response);
 	Release(response);
 }
 
@@ -436,7 +499,90 @@ void HTTPResponseSendComplete(HTTPResponse response)
 {
 	setBlocking(response->connection->socket, true);
 	
+	HTTPResponseSend(response);
 	
-	
+	close(response->connection->socket);
 	setBlocking(response->connection->socket, false);
+}
+
+static char* HTTPResolvePath(HTTPRequest request, char* p)
+{
+	char* path = malloc(sizeof(char) * PATH_MAX);
+	char* real;
+	
+	strncpy(path, "/Users/christian/Public/", PATH_MAX);
+	strncat(path, p, PATH_MAX);
+	
+	real = realpath(path, NULL);
+	
+	free(path);
+	
+	return real;
+}
+
+static bool HTTPResponseSend(HTTPResponse response)
+{
+	switch(response->sendStatus) {
+	case kHTTPResponseSendingNotStarted:
+		response->sendStatus++;
+	case kHTTPResponseSendingStatusLine:
+		if (!HTTPResponseSendStatusLine(response))
+			return false;
+		response->sendStatus++;
+	case kHTTPResponseSendingHeaders:
+		if (!HTTPResponseSendHeaders(response))
+			return false;
+		response->sendStatus++;
+	case kHTTPResponseSendingBody:
+		if (!HTTPResponseSendBody(response))
+			return false;
+		response->sendStatus++;
+	case kHTTPResponseSendingComplete:
+		return true;
+	}
+}
+
+static bool HTTPResponseSendStatusLine(HTTPResponse response)
+{
+	struct _HTTPResponseSendStatusLineInfo* info;
+	if (!response->sendStatusExtra) {
+		response->sendStatusExtra = malloc(sizeof(struct _HTTPResponseSendStatusLineInfo));
+		
+		memset(response->sendStatusExtra, 0, sizeof(struct _HTTPResponseSendStatusLineInfo));
+		
+		info = response->sendStatusExtra;
+		
+		int maxLineLength = 255;
+		info->statusLine = malloc(sizeof(char) * maxLineLength);
+		snprintf(info->statusLine, maxLineLength, "HTTP/1.0 %3d %s\r\n", response->code, "");
+	}
+	
+	ssize_t s = send(response->connection->socket, info->statusLine + info->sentBytes,
+		 strlen(info->statusLine) - info->sentBytes, 0);
+	
+	if (s < 0) {
+		perror("send");
+		return false;
+	}
+	
+	info->sentBytes += s;
+
+	// Everything is sent
+	if (info->sentBytes == strlen(info->statusLine)) {
+		free(response->sendStatusExtra);
+		response->sendStatusExtra = NULL;
+		return true;
+	}
+	
+	return false;
+}
+
+static bool HTTPResponseSendHeaders(HTTPResponse response)
+{
+	return true;
+}
+
+static bool HTTPResponseSendBody(HTTPResponse response)
+{
+	return true;
 }
