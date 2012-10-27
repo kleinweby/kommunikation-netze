@@ -159,10 +159,8 @@ static Server CreateServer(WebServer webServer, struct addrinfo *info)
 		int socket = accept(server->socket, &info, &infoSize);
 		
 		if (socket) {
-			Dispatch(server->webServer->inputQueue, ^{
-				HTTPConnection connection = HTTPConnectionCreate(server, socket, info);
-				#pragma unused(connection)
-			});
+			HTTPConnection connection = HTTPConnectionCreate(server, socket, info);
+			#pragma unused(connection)
 		}
 	});
 	

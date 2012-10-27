@@ -22,6 +22,8 @@ typedef enum {
 } HTTPConnectionState;
 
 struct _HTTPRequest {
+	Retainable retainable;
+	
 	//
 	// The method of the http request
 	//
@@ -73,6 +75,8 @@ struct _HTTPConnection {
 };
 
 struct _HTTPResponse {
+	Retainable retainable;
+	
 	//
 	// The connection this resposne is accosiated to
 	//
@@ -101,12 +105,15 @@ static void HTTPRequestParse(HTTPRequest request, char* buffer);
 static void HTTPRequestParseActionLine(HTTPRequest request, char* line);
 static void HTTPRequestParseHeader(HTTPRequest request, char* buffer);
 static void HTTPRequestParseHeaderLine(HTTPRequest request, char* line);
+static void HTTPRequestDealloc(void* ptr);
 
 static void HTTPConnectionReadRequest(HTTPConnection connection);
+static void HTTPConnectionDealloc(void* ptr);
 static void HTTPProcessRequest(HTTPConnection connection);
 
 // Convienience method for an error condition
 static void HTTPResponseSendError(HTTPConnection connection, HTTPStatusCode code, char* responseString);
+static void HTTPResponseDealloc(void* ptr);
 
 bool HTTPCanParseBuffer(char* buffer) {
 	if (strstr(buffer, kHTTPContentDelimiter))
@@ -118,6 +125,10 @@ bool HTTPCanParseBuffer(char* buffer) {
 HTTPRequest HTTPRequestCreate(char* buffer)
 {
 	HTTPRequest request = malloc(sizeof(struct _HTTPRequest));
+	
+	memset(request, 0, sizeof(struct _HTTPRequest));
+	
+	RetainableInitialize(&request->retainable, HTTPRequestDealloc);
 	
 	request->headerDictionary = DictionaryCreate();
 	
@@ -141,8 +152,10 @@ const char* HTTPRequestGetHeaderValueForKey(HTTPRequest request, const char* key
 	return DictionaryGet(request->headerDictionary, key);
 }
 
-void HTTPRequestDestroy(HTTPRequest request)
+void HTTPRequestDealloc(void* ptr)
 {
+	HTTPRequest request = ptr;
+	
 	free(request);
 }
 
@@ -211,7 +224,7 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr i
 	
 	memset(connection, 0, sizeof(struct _HTTPConnection));
 	
-	RetainableInitialize(&connection->retainable, (void (*)(void *))HTTPConnectionDestroy);
+	RetainableInitialize(&connection->retainable, HTTPConnectionDealloc);
 	connection->magic = kHTTPConnectionMagic;
 	
 	connection->server = server;
@@ -251,9 +264,12 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr i
 	return connection;
 }
 
-void HTTPConnectionDestroy(HTTPConnection connection)
+void HTTPConnectionDealloc(void* ptr)
 {
+	HTTPConnection connection = ptr;
+	
 	assert(connection->magic == kHTTPConnectionMagic);
+		
 	if (connection->buffer) {
 		free(connection->buffer);
 	}
@@ -302,12 +318,12 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		
 		if (readBuffer < 0) {
 			perror("recv");
-			HTTPConnectionDestroy(connection);
+			Release(connection);
 			return;
 		}
 		else if (readBuffer == 0) {
 			printf("Client closed connection...\n");
-			HTTPConnectionDestroy(connection);
+			Release(connection);
 			return;
 		}
 		
@@ -366,7 +382,7 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	
 	close(connection->socket);
 	//HTTPConnectionDestroy(connection);
-	HTTPRequestDestroy(request);
+	Release(request);
 }
 
 HTTPResponse HTTPResponseCreate(HTTPConnection connection)
@@ -375,11 +391,15 @@ HTTPResponse HTTPResponseCreate(HTTPConnection connection)
 	
 	memset(response, 0, sizeof(struct _HTTPResponse));
 	
+	RetainableInitialize(&response->retainable, HTTPResponseDealloc);
+	
 	return response;
 }
 
-void HTTPResponseDestroy(HTTPResponse response)
+void HTTPResponseDealloc(void* ptr)
 {
+	HTTPResponse response = ptr;
+	
 	free(response);
 }
 
@@ -409,7 +429,7 @@ static void HTTPResponseSendError(HTTPConnection connection, HTTPStatusCode code
 	
 	HTTPResponseSetResponseString(response, responseString);
 	
-	HTTPResponseDestroy(response);
+	Release(response);
 }
 
 void HTTPResponseSendComplete(HTTPResponse response)

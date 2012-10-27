@@ -92,30 +92,15 @@ HTTPVersion HTTPRequestGetVersion(HTTPRequest request);
 const char* HTTPRequestGetHeaderValueForKey(HTTPRequest request, const char* key);
 
 //
-// Destroys an http request and releases all resources
-//
-void HTTPRequestDestroy(HTTPRequest request);
-
-//
 // Creates and accepts a new http connection
 //
 HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr info);
-
-//
-// Destroys the connection
-//
-void HTTPConnectionDestroy(HTTPConnection connection);
 
 //
 // Creates a new http response associated with an
 // given connection
 //
 HTTPResponse HTTPResponseCreate(HTTPConnection connection);
-
-//
-// Destroys a http response
-//
-void HTTPResponseDestroy(HTTPResponse response);
 
 //
 // Set a given status code

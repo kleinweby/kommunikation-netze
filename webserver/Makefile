@@ -13,7 +13,12 @@ CFLAGS+= -fblocks -IBlocksRuntime/BlocksRuntime
 endif
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	@echo "[CC] $@"
+	@$(CC) $(CFLAGS) -c -o $@ $^
+
+%.d: %.c
+	@echo "[DEP] $@"
+	@$(CC) $(CFLAGS) -MM -MT -c -o $@ $^
 
 all: webserver
 
@@ -27,3 +32,6 @@ clean:
 	rm -f webserver
 	rm -f BlocksRuntime/libBlocksRuntime.a
 	rm -f $(OBJS)
+	rm -f $(OBJS:.o=.d)
+	
+-include $(OBJS:.o=.d)

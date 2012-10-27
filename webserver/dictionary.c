@@ -1,4 +1,5 @@
 #include "dictionary.h"
+#include "retainable.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -12,14 +13,19 @@ struct _DictionaryEntry {
 };
 
 struct _Dictionary {
+	Retainable retainable;
+	
 	struct _DictionaryEntry* headEntry;
 };
 
 static void DictionaryEntryDestroy(struct _DictionaryEntry* entry);
+static void DictionaryDealloc(void* ptr);
 
 Dictionary DictionaryCreate(size_t sizeHint)
 {
 	Dictionary dict = malloc(sizeof(struct _Dictionary));
+	
+	RetainableInitialize(&dict->retainable, DictionaryDealloc);
 	
 	dict->headEntry = malloc(sizeof(struct _DictionaryEntry));
 	dict->headEntry->key = "";
@@ -87,8 +93,10 @@ void DictionarySet(Dictionary dict, const char* key, const void* value)
 	}
 }
 
-void DictionaryDestroy(Dictionary dict)
+void DictionaryDealloc(void* ptr)
 {
+	Dictionary dict = ptr;
+	
 	DictionaryEntryDestroy(dict->headEntry);
 	free(dict);
 }

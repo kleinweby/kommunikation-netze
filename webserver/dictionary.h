@@ -18,9 +18,3 @@ void* DictionaryGet(Dictionary dict, const char* key);
 // is keept valid.
 //
 void DictionarySet(Dictionary dict, const char* key, const void* value);
-
-//
-// Destroys the dictionary and frees all
-// memory
-//
-void DictionaryDestroy(Dictionary dict);
