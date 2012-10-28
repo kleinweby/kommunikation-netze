@@ -15,7 +15,7 @@
 struct _PollInfo {
 	PollFlags flags;
 	DispatchQueue queue;
-	void (^block)(int revents);
+	void (^block)(short revents);
 };
 
 struct _PollUpdate {
@@ -81,7 +81,7 @@ Poll PollCreate()
 	return poll;
 }
 
-void PollRegister(Poll poll, int fd, int events, PollFlags flags, DispatchQueue queue, void (^block)(int revents))
+void PollRegister(Poll poll, int fd, short events, PollFlags flags, DispatchQueue queue, void (^block)(short revents))
 {
 	struct _PollUpdate* update = malloc(sizeof(struct _PollUpdate));
 	
@@ -121,7 +121,9 @@ static void* PollThread(void* ptr)
 	Poll p = ptr;
 	int socksToHandle;
 	
-	PollRegister(p, p->updateFDs[0], POLLIN, kPollRepeatFlag, NULL, ^(int revents){});
+	PollRegister(p, p->updateFDs[0], POLLIN, kPollRepeatFlag, NULL, ^(short revents){
+#pragma unused(revents)
+	});
 	
 	for (;;) {
 		PollApplyUpdates(p);
@@ -135,9 +137,9 @@ static void* PollThread(void* ptr)
 			return NULL;
 		}
 		else {
-			for (int i = 0, n = 0; i < p->numOfPolls && n < socksToHandle; i++) {
+			for (uint32_t i = 0; i < p->numOfPolls && socksToHandle > 0; i++) {
 				if (p->polls[i].revents > 0) {
-					n++;
+					socksToHandle--;
 					
 					// Dont repeat so remove it
 					// We need to enqueue the update before to let the block
@@ -149,8 +151,8 @@ static void* PollThread(void* ptr)
 					
 					// If we have a queue use this
 					if (p->pollInfos[i].queue) {
-						int revents = p->polls[i].revents;
-						void (^block)(int revents) = p->pollInfos[i].block;
+						short revents = p->polls[i].revents;
+						void (^block)(short revents) = p->pollInfos[i].block;
 						Dispatch(p->pollInfos[i].queue, ^{
 							block(revents);
 						});
@@ -177,8 +179,8 @@ static void PollApplyUpdates(Poll poll)
 	while ((update = QueueDequeue(poll->updateQueue)) != NULL) {
 		// Add/Update
 		if (update->pollInfo.block) {
-			int foundIndex = -1;
-			for(int i = 0; i < poll->numOfPolls; i++) {
+			uint32_t foundIndex = UINT32_MAX;
+			for(uint32_t i = 0; i < poll->numOfPolls; i++) {
 				if (poll->polls[i].fd == update->poll.fd) {
 					foundIndex = i;
 					break;
@@ -186,7 +188,7 @@ static void PollApplyUpdates(Poll poll)
 			}
 	
 			// Not found, add to the end
-			if (foundIndex == -1) {
+			if (foundIndex == UINT32_MAX) {
 				foundIndex = poll->numOfPolls;
 				poll->numOfPolls++;
 			}
@@ -213,7 +215,7 @@ static void PollApplyUpdates(Poll poll)
 		}
 		// Remove
 		else {
-			for(int i = 0; i < poll->numOfPolls; i++) {
+			for(uint32_t i = 0; i < poll->numOfPolls; i++) {
 				if (poll->polls[i].fd == update->poll.fd) {
 					if (poll->pollInfos[i].block)
 						Block_release(poll->pollInfos[i].block);
@@ -244,5 +246,5 @@ static void PollApplyUpdates(Poll poll)
 
 static void PollDealloc(void* ptr)
 {
-	
+#pragma unused(ptr)
 }

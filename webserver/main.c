@@ -6,6 +6,9 @@
 #include "utils/helper.h"
 
 int main(int argc, char** argv) {
+#pragma unused(argc)
+#pragma unused(argv)
+	
 	setBlocking(0, false);
 	
 	WebServer server = WebServerCreate("8080");

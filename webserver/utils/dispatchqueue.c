@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <Block.h>
 
 struct _DispatchQueue {
@@ -14,8 +15,8 @@ struct _DispatchQueue {
 	Queue queue;
 	
 	pthread_t* threads;
-	int numOfThreads;
-	int maxThreads;
+	uint32_t numOfThreads;
+	uint32_t maxThreads;
 };
 
 static void* _DispatchQueueThread(void* ptr);
@@ -36,7 +37,7 @@ DispatchQueue DispatchQueueCreate(DispatchQueueFlags flags)
 	queue->threads = malloc(sizeof(pthread_t) * queue->maxThreads);
 	
 	// Start our threads
-	for (int i = 0; i < queue->maxThreads; i++) {
+	for (uint32_t i = 0; i < queue->maxThreads; i++) {
 		if (pthread_create(&queue->threads[i], NULL, _DispatchQueueThread, queue)) {
 			perror("pthread_create");
 			Release(queue);
@@ -75,15 +76,15 @@ static void _DisptachQueueDealloc(void* ptr)
 	DispatchQueue queue = ptr;
 	// We need to stop all remaining threads, so we just enqueue
 	// One exit block for everh thread
-	for (int i = 0; i < queue->numOfThreads; i++) {
-		Dispatch(queue, ^{
+	for (uint32_t i = 0; i < queue->numOfThreads; i++) {
+		Dispatch(queue, ^ __attribute__((noreturn)) {
 			pthread_exit(NULL);
 		});
 	}
 	
 	// Now we join all the threads to let them finish before
 	// we remove any data
-	for (int i = 0; i < queue->numOfThreads; i++) {
+	for (uint32_t i = 0; i < queue->numOfThreads; i++) {
 		pthread_join(queue->threads[i], NULL);
 	}
 	

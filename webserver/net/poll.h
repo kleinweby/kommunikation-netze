@@ -28,7 +28,7 @@ Poll PollCreate();
 // The block will be dispatched on the given queue.
 // Null means that it is called inplace.
 //
-void PollRegister(Poll poll, int fd, int events, PollFlags flags, DispatchQueue queue, void (^block)(int revents));
+void PollRegister(Poll poll, int fd, short events, PollFlags flags, DispatchQueue queue, void (^block)(short revents));
 
 //
 // Removes a registered listener (if any)

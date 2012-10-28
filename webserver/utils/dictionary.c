@@ -21,7 +21,7 @@ struct _Dictionary {
 static void DictionaryEntryDestroy(struct _DictionaryEntry* entry);
 static void DictionaryDealloc(void* ptr);
 
-Dictionary DictionaryCreate(size_t sizeHint)
+Dictionary DictionaryCreate()
 {
 	Dictionary dict = malloc(sizeof(struct _Dictionary));
 	

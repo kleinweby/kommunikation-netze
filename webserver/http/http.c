@@ -55,13 +55,9 @@ struct _HTTPRequest {
 	void* inputBakcend;
 };
 
-static char* kHTTPConnectionMagic = "_HTTPConnection";
-static char* kHTTPConnectionDeadMagic = ":(";
-
 struct _HTTPConnection {
 	Retainable retainable;
 	
-	char *magic;
 	int socket;
 	
 	Server server;
@@ -71,7 +67,7 @@ struct _HTTPConnection {
 	struct sockaddr_in info;
 	socklen_t infoLength;
 	
-	void* buffer;
+	char* buffer;
 	size_t bufferFilled;
 	size_t bufferLength;
 };
@@ -262,7 +258,6 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr i
 	memset(connection, 0, sizeof(struct _HTTPConnection));
 	
 	RetainableInitialize(&connection->retainable, HTTPConnectionDealloc);
-	connection->magic = kHTTPConnectionMagic;
 	
 	connection->server = server;
 	memcpy(&connection->info, &info, sizeof(struct sockaddr_in));
@@ -278,7 +273,7 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr i
 	// For the block
 	Retain(connection);
 	PollRegister(ServerGetPoll(connection->server), connection->socket, 
-		POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(int revents) {
+		POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(short revents) {
 			if ((revents & POLLHUP) > 0) {
 				close(connection->socket);
 				connection->socket = 0;
@@ -304,9 +299,7 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr i
 void HTTPConnectionDealloc(void* ptr)
 {
 	HTTPConnection connection = ptr;
-	
-	assert(connection->magic == kHTTPConnectionMagic);
-		
+			
 	if (connection->buffer) {
 		free(connection->buffer);
 	}
@@ -318,14 +311,11 @@ void HTTPConnectionDealloc(void* ptr)
 	}
 	
 	printf("Dealloc connection:%p\n", connection);
-	connection->magic = kHTTPConnectionDeadMagic;
 	free(connection);
 }
 
 static void HTTPConnectionReadRequest(HTTPConnection connection)
-{
-	assert(connection->magic == kHTTPConnectionMagic);
-	
+{	
 	if (!connection->buffer) {
 		connection->bufferFilled = 0;
 		connection->bufferLength = 255;
@@ -334,7 +324,7 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 	
 	assert(connection->buffer);
 	
-	ssize_t avaiableBuffer;
+	size_t avaiableBuffer;
 	ssize_t readBuffer;
 	do {
 		avaiableBuffer = connection->bufferLength - connection->bufferFilled;
@@ -351,7 +341,7 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		
 		readBuffer = recv(connection->socket, connection->buffer + connection->bufferFilled, avaiableBuffer, 0);
 		
-		assert(connection->bufferFilled + readBuffer <= connection->bufferLength);
+		assert(connection->bufferFilled + (size_t)readBuffer <= connection->bufferLength);
 		
 		if (readBuffer < 0) {
 			perror("recv");
@@ -364,8 +354,8 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 			return;
 		}
 		
-		connection->bufferFilled += readBuffer;
-	} while (readBuffer == avaiableBuffer);
+		connection->bufferFilled += (size_t)readBuffer;
+	} while ((size_t)readBuffer == avaiableBuffer);
 	
 	if (HTTPCanParseBuffer(connection->buffer)) {
 		connection->state = HTTPConnectionProcessingRequest;
@@ -381,7 +371,7 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		// For the block
 		Retain(connection);
 		PollRegister(ServerGetPoll(connection->server), connection->socket, 
-			POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(int revents) {
+			POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(short revents) {
 				if ((revents & POLLHUP) > 0) {
 					close(connection->socket);
 					connection->socket = 0;
@@ -402,9 +392,7 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 }
 
 static void HTTPProcessRequest(HTTPConnection connection)
-{
-	assert(connection->magic == kHTTPConnectionMagic);
-	
+{	
 	HTTPRequest request = HTTPRequestCreate(connection->buffer);
 	HTTPResponse response = HTTPResponseCreate(connection);
 	struct stat stat;
@@ -507,6 +495,7 @@ void HTTPResponseSendComplete(HTTPResponse response)
 
 static char* HTTPResolvePath(HTTPRequest request, char* p)
 {
+#pragma unused(request)
 	char* path = malloc(sizeof(char) * PATH_MAX);
 	char* real;
 	
@@ -544,15 +533,16 @@ static bool HTTPResponseSend(HTTPResponse response)
 
 static bool HTTPResponseSendStatusLine(HTTPResponse response)
 {
-	struct _HTTPResponseSendStatusLineInfo* info;
-	if (!response->sendStatusExtra) {
+	struct _HTTPResponseSendStatusLineInfo* info = response->sendStatusExtra;
+	
+	if (!info) {
 		response->sendStatusExtra = malloc(sizeof(struct _HTTPResponseSendStatusLineInfo));
 		
 		memset(response->sendStatusExtra, 0, sizeof(struct _HTTPResponseSendStatusLineInfo));
 		
 		info = response->sendStatusExtra;
 		
-		int maxLineLength = 255;
+		uint maxLineLength = 255;
 		info->statusLine = malloc(sizeof(char) * maxLineLength);
 		snprintf(info->statusLine, maxLineLength, "HTTP/1.0 %3d %s\r\n", response->code, "");
 	}
@@ -565,7 +555,7 @@ static bool HTTPResponseSendStatusLine(HTTPResponse response)
 		return false;
 	}
 	
-	info->sentBytes += s;
+	info->sentBytes += (size_t)s;
 
 	// Everything is sent
 	if (info->sentBytes == strlen(info->statusLine)) {
@@ -579,10 +569,12 @@ static bool HTTPResponseSendStatusLine(HTTPResponse response)
 
 static bool HTTPResponseSendHeaders(HTTPResponse response)
 {
+#pragma unused(response)
 	return true;
 }
 
 static bool HTTPResponseSendBody(HTTPResponse response)
 {
+#pragma unused(response)
 	return true;
 }

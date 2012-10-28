@@ -1,6 +1,6 @@
 CC=clang
-CFLAGS=-Wall -Werror -std=gnu99 -ggdb -I.
-LDFLAGS=
+CFLAGS=-Weverything -Wno-padded -Wno-missing-prototypes -Werror -std=gnu99 -ggdb -I. -pipe
+LDFLAGS=-pipe
 
 # Not the best but should work
 IS_DARWIN=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
@@ -16,7 +16,11 @@ endif
 
 %.o: %.c
 	@echo "[CC] $@"
-	@$(CC) $(CFLAGS) -MD -c -o $@ $^
+	@$(CC) $(CFLAGS) -MD -c -o $@ $<
+
+%.E: %.c
+	@echo "[PRE] $@"
+	@$(CC) $(CFLAGS) -E -o $@ $<
 
 all: webserver
 

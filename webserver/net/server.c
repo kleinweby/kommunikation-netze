@@ -117,12 +117,12 @@ static bool CreateServers(WebServer webServer, char* port)
 	return true;
 }
 
-static Server CreateServer(WebServer webServer, struct addrinfo *info)
+static Server CreateServer(WebServer webServer, struct addrinfo *serverInfo)
 {
 	Server server = malloc(sizeof(struct _Server));
 	
 	server->webServer = webServer;
-	server->socket = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+	server->socket = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
 		
 	if (server->socket < 0) {
 		free(server);
@@ -137,7 +137,7 @@ static Server CreateServer(WebServer webServer, struct addrinfo *info)
 		return NULL;
 	}
 	
-	if (bind(server->socket, info->ai_addr, info->ai_addrlen) < 0) {
+	if (bind(server->socket, serverInfo->ai_addr, serverInfo->ai_addrlen) < 0) {
 		close(server->socket);
 		free(server);
 		return NULL;
@@ -153,7 +153,8 @@ static Server CreateServer(WebServer webServer, struct addrinfo *info)
 	printf("Listen on %s...\n", stringFromSockaddrIn(&server->info));
 	listen(server->socket, 300);
 	
-	PollRegister(server->webServer->poll, server->socket, POLLIN, kPollRepeatFlag, NULL, ^(int revents) {
+	PollRegister(server->webServer->poll, server->socket, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
+#pragma unused(revents)
 		struct sockaddr info;
 		socklen_t infoSize = sizeof(info);
 		int socket = accept(server->socket, &info, &infoSize);
