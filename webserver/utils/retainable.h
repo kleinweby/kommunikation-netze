@@ -18,14 +18,14 @@ typedef struct {
 	//
 	// Is called when retain Count reaches zero
 	//
-	void (*Destroy)(void* ptr);
+	void (*Dealloc)(void* ptr);
 } Retainable;
 
 //
 // Call this once when the struct you want to be reaintable
 // is created. Will set rc to 1
 //
-void RetainableInitialize(void* ptr, void (*Destroy)(void* ptr));
+void RetainableInitialize(void* ptr, void (*Dealloc)(void* ptr));
 
 //
 // Will increase the rc by one.

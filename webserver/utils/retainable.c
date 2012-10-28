@@ -1,12 +1,13 @@
 #include "retainable.h"
 
+#include <stdlib.h>
 #include <assert.h>
 
-void RetainableInitialize(void* ptr, void (*Destroy)(void* ptr)) {
+void RetainableInitialize(void* ptr, void (*Dealloc)(void* ptr)) {
 	Retainable* retainable = ptr;
 	
 	retainable->retainCount = 1;
-	retainable->Destroy = Destroy;
+	retainable->Dealloc = Dealloc;
 }
 
 void* Retain(void* ptr) {
@@ -23,6 +24,9 @@ void* Retain(void* ptr) {
 }
 
 void Release(void* ptr) {
+	if (ptr == NULL)
+		return;
+	
 	Retainable* retainable = ptr;
 	int rc;
 	
@@ -32,7 +36,7 @@ void Release(void* ptr) {
 	
 	assert(rc >= 0);
 	
-	if (rc == 0 && retainable->Destroy) {
-		retainable->Destroy(ptr);
+	if (rc == 0 && retainable->Dealloc) {
+		retainable->Dealloc(ptr);
 	}
 }

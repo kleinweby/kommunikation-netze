@@ -4,21 +4,30 @@
 #include <string.h>
 #include <stdlib.h>
 
+typedef struct _DictionaryEntry* DictionaryEntry;
+
 struct _DictionaryEntry {
+	Retainable retainable;
+	
 	const char* key;
 	const void* value;
 	
-	struct _DictionaryEntry* leftEntry;
-	struct _DictionaryEntry* rightEntry;
+	DictionaryEntry leftEntry;
+	DictionaryEntry rightEntry;
 };
+
+
+static DictionaryEntry DictionaryEntryCreate(const char* key, const char* value);
+static void DictionaryEntrySetLeftEntry(DictionaryEntry entry, DictionaryEntry left);
+static void DictionaryEntrySetRightEntry(DictionaryEntry entry, DictionaryEntry right);
+static void DictionaryEntryDealloc(void* ptr);
 
 struct _Dictionary {
 	Retainable retainable;
 	
-	struct _DictionaryEntry* headEntry;
+	DictionaryEntry headEntry;
 };
 
-static void DictionaryEntryDestroy(struct _DictionaryEntry* entry);
 static void DictionaryDealloc(void* ptr);
 
 Dictionary DictionaryCreate()
@@ -27,17 +36,14 @@ Dictionary DictionaryCreate()
 	
 	RetainableInitialize(&dict->retainable, DictionaryDealloc);
 	
-	dict->headEntry = malloc(sizeof(struct _DictionaryEntry));
-	dict->headEntry->key = "";
-	dict->headEntry->leftEntry = NULL;
-	dict->headEntry->rightEntry = NULL;
+	dict->headEntry = DictionaryEntryCreate("", NULL);
 	
 	return dict;
 }
 
 void* DictionaryGet(Dictionary dict, const char* key)
 {
-	struct _DictionaryEntry* entry = dict->headEntry;
+	DictionaryEntry entry = dict->headEntry;
 	
 	while(entry != NULL) {
 		int cmp = strcmp(entry->key, key);
@@ -55,7 +61,7 @@ void* DictionaryGet(Dictionary dict, const char* key)
 
 void DictionarySet(Dictionary dict, const char* key, const void* value)
 {
-	struct _DictionaryEntry* entry = dict->headEntry;
+	DictionaryEntry entry = dict->headEntry;
 	
 	while(entry != NULL) {
 		int cmp = strcmp(entry->key, key);
@@ -68,12 +74,7 @@ void DictionarySet(Dictionary dict, const char* key, const void* value)
 			if (entry->leftEntry)
 				entry = entry->leftEntry;
 			else {
-				entry->leftEntry = malloc(sizeof(struct _DictionaryEntry));
-				entry = entry->leftEntry;
-				entry->key = key;
-				entry->value = value;
-				entry->leftEntry = NULL;
-				entry->rightEntry = NULL;
+				DictionaryEntrySetLeftEntry(entry, DictionaryEntryCreate(key, value));
 				return;
 			}
 		}
@@ -81,12 +82,7 @@ void DictionarySet(Dictionary dict, const char* key, const void* value)
 			if (entry->rightEntry)
 				entry = entry->rightEntry;
 			else {
-				entry->rightEntry = malloc(sizeof(struct _DictionaryEntry));
-				entry = entry->rightEntry;
-				entry->key = key;
-				entry->value = value;
-				entry->leftEntry = NULL;
-				entry->rightEntry = NULL;
+				DictionaryEntrySetRightEntry(entry, DictionaryEntryCreate(key, value));
 				return;
 			}
 		}
@@ -97,16 +93,41 @@ void DictionaryDealloc(void* ptr)
 {
 	Dictionary dict = ptr;
 	
-	DictionaryEntryDestroy(dict->headEntry);
+	Release(dict->headEntry);
 	free(dict);
 }
 
-static void DictionaryEntryDestroy(struct _DictionaryEntry* entry)
+static DictionaryEntry DictionaryEntryCreate(const char* key, const char* value)
 {
-	if (!entry)
-		return;
+	DictionaryEntry entry = malloc(sizeof(struct _DictionaryEntry));
 	
-	DictionaryEntryDestroy(entry->leftEntry);
-	DictionaryEntryDestroy(entry->rightEntry);
-	free(entry);
+	memset(entry, 0, sizeof(struct _DictionaryEntry));
+	
+	RetainableInitialize(&entry->retainable, DictionaryEntryDealloc);
+	
+	entry->key = key;
+	entry->value = value;
+	
+	return entry;
+}
+
+static void DictionaryEntrySetLeftEntry(DictionaryEntry entry, DictionaryEntry left)
+{
+	Release(entry->leftEntry);
+	entry->leftEntry = Retain(left);
+}
+
+static void DictionaryEntrySetRightEntry(DictionaryEntry entry, DictionaryEntry right)
+{
+	Release(entry->rightEntry);
+	entry->rightEntry = Retain(right);
+}
+
+static void DictionaryEntryDealloc(void* ptr)
+{
+	DictionaryEntry entry = ptr;
+	
+	Release(entry->leftEntry);
+	Release(entry->rightEntry);
+	free(ptr);
 }
