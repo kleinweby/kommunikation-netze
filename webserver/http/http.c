@@ -1,9 +1,9 @@
 
 #include "http.h"
-#include "str_helper.h"
-#include "dictionary.h"
-#include "helper.h"
-#include "retainable.h"
+#include "utils/str_helper.h"
+#include "utils/dictionary.h"
+#include "utils/helper.h"
+#include "utils/retainable.h"
 
 #include <string.h>
 #include <stdlib.h>

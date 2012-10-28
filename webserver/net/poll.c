@@ -1,7 +1,7 @@
 #include "poll.h"
-#include "retainable.h"
-#include "queue.h"
-#include "helper.h"
+#include "utils/retainable.h"
+#include "utils/queue.h"
+#include "utils/helper.h"
 
 #include <string.h>
 #include <pthread.h>

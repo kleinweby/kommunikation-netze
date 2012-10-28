@@ -1,11 +1,12 @@
 CC=clang
-CFLAGS=-Wall -Werror -std=gnu99 -ggdb
+CFLAGS=-Wall -Werror -std=gnu99 -ggdb -I.
 LDFLAGS=
 
 # Not the best but should work
 IS_DARWIN=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
 
-OBJS=http.o test.o str_helper.o dictionary.o server.o helper.o queue.o retainable.o dispatchqueue.o poll.o
+SRC=http/http.c net/server.c net/poll.c utils/dictionary.c utils/dispatchqueue.c utils/helper.c utils/queue.c utils/retainable.c utils/str_helper.c main.c
+OBJS=$(SRC:.c=.o)
 
 ifneq ($(IS_DARWIN), 1)
 OBJS+= BlocksRuntime/libBlocksRuntime.a

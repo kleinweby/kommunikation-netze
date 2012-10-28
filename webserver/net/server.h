@@ -2,8 +2,8 @@
 #ifndef _SERVER_H_
 #define _SERVER_H_
 
-#include "DispatchQueue.h"
-#include "Poll.h"
+#include "utils/DispatchQueue.h"
+#include "net/Poll.h"
 
 typedef struct _WebServer* WebServer;
 typedef struct _Server* Server;

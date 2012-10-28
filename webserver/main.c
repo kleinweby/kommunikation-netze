@@ -2,8 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "server.h"
-#include "helper.h"
+#include "net/server.h"
+#include "utils/helper.h"
 
 int main(int argc, char** argv) {
 	setBlocking(0, false);

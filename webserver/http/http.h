@@ -1,4 +1,4 @@
-#include "server.h"
+#include "net/server.h"
 
 #include <stdbool.h>
 #include <netinet/in.h>

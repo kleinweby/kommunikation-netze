@@ -1,8 +1,8 @@
 #include "server.h"
-#include "helper.h"
-#include "http.h"
-#include "dispatchqueue.h"
-#include "queue.h"
+#include "utils/helper.h"
+#include "http/http.h"
+#include "utils/dispatchqueue.h"
+#include "utils/queue.h"
 
 #include <netinet/in.h>
 #include <netdb.h>
