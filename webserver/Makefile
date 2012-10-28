@@ -1,29 +1,27 @@
 CC=clang
-CFLAGS=-Wall -Werror -std=gnu99 -ggdb -pthread
-LDFLAGS=-pthread
+CFLAGS=-Wall -Werror -std=gnu99 -ggdb
+LDFLAGS=
 
 # Not the best but should work
-HAS_NATIVE_BLOCKS=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
+IS_DARWIN=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
 
 OBJS=http.o test.o str_helper.o dictionary.o server.o helper.o queue.o retainable.o dispatchqueue.o poll.o
 
-ifneq ($(HAS_NATIVE_BLOCKS), 1)
+ifneq ($(IS_DARWIN), 1)
 OBJS+= BlocksRuntime/libBlocksRuntime.a
-CFLAGS+= -fblocks -IBlocksRuntime/BlocksRuntime
+CFLAGS+=-pthread -fblocks -IBlocksRuntime/BlocksRuntime
+LDFLAGS+=-pthread
 endif
 
 %.o: %.c
 	@echo "[CC] $@"
-	@$(CC) $(CFLAGS) -c -o $@ $^
-
-%.d: %.c
-	@echo "[DEP] $@"
-	@$(CC) $(CFLAGS) -MM -MT -c -o $@ $^
+	@$(CC) $(CFLAGS) -MD -c -o $@ $^
 
 all: webserver
 
 webserver: $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "[LD] $@"
+	@$(CC) $(LDFLAGS) -o $@ $^
 
 BlocksRuntime/libBlocksRuntime.a:
 	cd BlocksRuntime && ./buildlib
