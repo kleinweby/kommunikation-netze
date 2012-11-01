@@ -1,11 +1,5 @@
-#include "net/server.h"
-
-#include <stdbool.h>
-#include <netinet/in.h>
-
-typedef struct _HTTPRequest* HTTPRequest; 
-typedef struct _HTTPConnection* HTTPConnection;
-typedef struct _HTTPResponse* HTTPResponse;
+#ifndef _HTTP_H_
+#define _HTTP_H_
 
 typedef enum { 
 	kHTTPMethodGet,
@@ -64,72 +58,12 @@ typedef enum {
 	kHTTPErrorVersionNotSupported = 505
 } HTTPStatusCode;
 
-//
-// Returns true when the buffer points to a
-// location which could be a http request
-// (means there is the magic \r\n\r\n included)
-//
-bool HTTPCanParseBuffer(char* buffer);
+extern const char* kHTTPLineDelimiter;
+extern const char* kHTTPContentDelimiter;
+extern const char* kHTTPHeaderDelimiter;
 
-//
-// Creates an http request with a given buffer.
-//
-HTTPRequest HTTPRequestCreate(char* buffer);
+typedef struct _HTTPResponse* HTTPResponse;
+typedef struct _HTTPRequest* HTTPRequest; 
+typedef struct _HTTPConnection* HTTPConnection;
 
-//
-// Returns the method specified in the request
-//
-HTTPMethod HTTPRequestGetMethod(HTTPRequest request);
-
-//
-// Returns the version specfied in the request
-//
-HTTPVersion HTTPRequestGetVersion(HTTPRequest request);
-
-//
-// Returns the value saved for key or NULL it key does not exists
-//
-const char* HTTPRequestGetHeaderValueForKey(HTTPRequest request, const char* key);
-
-//
-// Creates and accepts a new http connection
-//
-HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr info);
-
-//
-// Creates a new http response associated with an
-// given connection
-//
-HTTPResponse HTTPResponseCreate(HTTPConnection connection);
-
-//
-// Set a given status code
-//
-void HTTPResponseSetStatusCode(HTTPResponse response, HTTPStatusCode code);
-
-//
-// Set a given value for the header field.
-//
-void HTTPResponseSetHeaderValue(HTTPResponse response, const char* key, const char* value);
-
-//
-// Set a string to be delivered as response.
-//
-// This also sets the Length header and frees string upon completion.
-//
-void HTTPResponseSetResponseString(HTTPResponse response, char* string);
-
-//
-// Set a file descriptor to be delivered as response
-//
-// This also sets the length header if fd supports it and closes
-// the fd upon completion
-//
-void HTTPResponseSetResponseFileDescriptor(HTTPResponse response, int fd);
-
-//
-// Sends the response over the connection.
-//
-// Warning: this blocks.
-//
-void HTTPResponseSendComplete(HTTPResponse response);
+#endif /* _HTTP_H_ */

@@ -1,5 +1,6 @@
 #include "dictionary.h"
 #include "retainable.h"
+#include "stack.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -16,11 +17,20 @@ struct _DictionaryEntry {
 	DictionaryEntry rightEntry;
 };
 
-
 static DictionaryEntry DictionaryEntryCreate(const char* key, const char* value);
 static void DictionaryEntrySetLeftEntry(DictionaryEntry entry, DictionaryEntry left);
 static void DictionaryEntrySetRightEntry(DictionaryEntry entry, DictionaryEntry right);
 static void DictionaryEntryDealloc(void* ptr);
+
+struct _DictionaryIterator {
+	Retainable retainable;
+	
+	Dictionary dictionary;
+	DictionaryEntry currentEntry;
+	Stack stack;
+};
+
+static void DictionaryIteratorDealloc(void* ptr);
 
 struct _Dictionary {
 	Retainable retainable;
@@ -130,4 +140,64 @@ static void DictionaryEntryDealloc(void* ptr)
 	Release(entry->leftEntry);
 	Release(entry->rightEntry);
 	free(ptr);
+}
+
+DictionaryIterator DictionaryGetIterator(Dictionary dict)
+{
+	DictionaryIterator iter = malloc(sizeof(struct _DictionaryIterator));
+	
+	memset(iter, 0, sizeof(struct _DictionaryIterator));
+	RetainableInitialize(&iter->retainable, DictionaryIteratorDealloc);
+	
+	iter->stack = StackCreate();
+	iter->dictionary = Retain(dict);
+	
+	// Push the head dummy entry
+	StackPush(iter->stack, dict->headEntry);
+	
+	// Now advance twice to get to the first real entry
+	DictionaryIteratorNext(iter);
+	DictionaryIteratorNext(iter);
+	
+	return iter;
+}
+
+char* DictionaryIteratorGetKey(DictionaryIterator iter)
+{
+	if (!iter->currentEntry)
+		return NULL;
+	
+	return (char*)iter->currentEntry->key;
+}
+
+void* DictionaryIteratorGetValue(DictionaryIterator iter)
+{
+	if (!iter->currentEntry)
+		return NULL;
+	
+	return (void*)iter->currentEntry->value;
+}
+
+bool DictionaryIteratorNext(DictionaryIterator iter)
+{
+	iter->currentEntry = StackPop(iter->stack);
+	
+	if (!iter->currentEntry)
+		return false;
+	
+	if (iter->currentEntry->leftEntry)
+		StackPush(iter->stack, iter->currentEntry->leftEntry);
+	if (iter->currentEntry->rightEntry)
+		StackPush(iter->stack, iter->currentEntry->rightEntry);
+	
+	return true;
+}
+
+static void DictionaryIteratorDealloc(void* ptr)
+{
+	DictionaryIterator iter = ptr;
+	
+	Release(iter->dictionary);
+	Release(iter->stack);
+	free(iter);
 }

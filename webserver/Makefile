@@ -1,11 +1,11 @@
-CC=clang
+CC?=clang
 CFLAGS=-Weverything -Wno-padded -Wno-missing-prototypes -Werror -std=gnu99 -ggdb -I. -pipe
 LDFLAGS=-pipe
 
 # Not the best but should work
 IS_DARWIN=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
 
-SRC=http/http.c net/server.c net/poll.c utils/dictionary.c utils/dispatchqueue.c utils/helper.c utils/queue.c utils/retainable.c utils/str_helper.c main.c
+SRC=http/http.c http/httpconnection.c http/httprequest.c http/httpresponse.c net/server.c net/poll.c utils/dictionary.c utils/dispatchqueue.c utils/helper.c utils/queue.c utils/retainable.c utils/str_helper.c utils/stack.c main.c
 OBJS=$(SRC:.c=.o)
 
 ifneq ($(IS_DARWIN), 1)
