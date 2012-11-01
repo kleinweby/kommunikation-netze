@@ -14,7 +14,8 @@
 char *readline (const char *prompt);
 
 int connectToServer(const char* host, const char* port) {
-	int sock;
+	int sock = -1;
+    int error;
 	struct addrinfo *result;
 	struct addrinfo hints;
 	
@@ -22,8 +23,9 @@ int connectToServer(const char* host, const char* port) {
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	
-	if (getaddrinfo(host, port, &hints, &result) < 0) {
-		perror("getaddrinfo");
+    error = getaddrinfo(host, port, &hints, &result);
+	if (error != 0) {
+		printf("Error: %s\n", gai_strerror(error));
 		return -1;
 	}
 	
