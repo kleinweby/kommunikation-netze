@@ -28,7 +28,7 @@ struct _Server {
 	//
 	// Saved informations about the server socket
 	//
-	struct sockaddr_in info;
+	struct sockaddr_in6 info;
 	socklen_t infoLength;
 	
 	pthread_t acceptThread;
@@ -61,6 +61,7 @@ WebServer WebServerCreate(char* port)
 	
 	webServer->poll = PollCreate();
 	
+	signal(SIGPIPE, SIG_IGN);
 	CreateServers(webServer, port);
 	
 	if (webServer->numberOfServers == 0) {
@@ -160,9 +161,9 @@ static Server CreateServer(WebServer webServer, struct addrinfo *serverInfo)
 	
 	PollRegister(server->webServer->poll, server->socket, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
 #pragma unused(revents)
-		struct sockaddr info;
+		struct sockaddr_in6 info;
 		socklen_t infoSize = sizeof(info);
-		int socket = accept(server->socket, &info, &infoSize);
+		int socket = accept(server->socket, (struct sockaddr*)&info, &infoSize);
 		
 		if (socket) {
 			HTTPConnection connection = HTTPConnectionCreate(server, socket, info);

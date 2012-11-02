@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 #include <errno.h>
+#include <fcntl.h>
 
 typedef enum {
 	HTTPConnectionReadingRequest,
@@ -32,7 +33,7 @@ struct _HTTPConnection {
 	
 	HTTPConnectionState state;
 	
-	struct sockaddr_in info;
+	struct sockaddr_in6 info;
 	socklen_t infoLength;
 	
 	char* buffer;
@@ -49,7 +50,7 @@ static void HTTPProcessRequest(HTTPConnection connection);
 //
 static char* HTTPResolvePath(HTTPRequest request, char* path);
 
-HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr info)
+HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr_in6 info)
 {
 	assert(server);
 	
@@ -60,7 +61,7 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr i
 	RetainableInitialize(&connection->retainable, HTTPConnectionDealloc);
 	
 	connection->server = server;
-	memcpy(&connection->info, &info, sizeof(struct sockaddr_in));
+	memcpy(&connection->info, &info, sizeof(struct sockaddr_in6));
 	connection->socket = socket;
 	connection->infoLength = sizeof(connection->info);
 	
@@ -241,7 +242,8 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	}
 	
 	HTTPResponseSetStatusCode(response, kHTTPOK);
-	HTTPResponseSetResponseString(response, "Hallo wie geht's?");
+	//HTTPResponseSetResponseString(response, "Hallo wie geht's?");
+	HTTPResponseSetResponseFileDescriptor(response, open(resolvedPath, O_RDONLY));
 	HTTPResponseSendComplete(response);
 	HTTPResponseFinish(response);
 		
@@ -268,6 +270,26 @@ static char* HTTPResolvePath(HTTPRequest request, char* p)
 ssize_t HTTPConnectionSend(HTTPConnection connection, const void *buffer, size_t length)
 {
 	return send(connection->socket, buffer, length, 0);
+}
+
+ssize_t HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length)
+{
+#ifdef DARWIN
+	off_t len = (off_t)length;
+	off_t offset = lseek(fd, 0, SEEK_CUR);
+	
+	if (sendfile(fd, connection->socket, offset, &len, NULL, 0) < 0) {
+		perror("sendfile");
+		return -1;
+	}
+	
+	lseek(fd, len, SEEK_CUR);
+	
+	printf("sent %lld\n", len);
+	return len;
+#else
+#error Linux not supported yet
+#endif
 }
 
 void HTTPConnectionClose(HTTPConnection connection)

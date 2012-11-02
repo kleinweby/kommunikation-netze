@@ -5,22 +5,22 @@
 
 #include "helper.h"
 
-char* stringFromSockaddrIn(struct sockaddr_in const* sockaddr) {
+char* stringFromSockaddrIn(struct sockaddr_in6 const* sockaddr) {
 	char* buffer = malloc(100);
 	
-	if (!inet_ntop(sockaddr->sin_family, &sockaddr->sin_addr, buffer, 100))
+	if (!inet_ntop(sockaddr->sin6_family, &sockaddr->sin6_addr, buffer, 100))
 		return NULL;
 	
 	size_t len = strlen(buffer);
 	
-	if (sockaddr->sin_family == AF_INET6) {
+	if (sockaddr->sin6_family == AF_INET6) {
 		memmove(buffer+1, buffer, strlen(buffer));
 		buffer[0] = '[';
 		buffer[len+1] = ']';
 		len+=2;
     }
 	
-	snprintf(buffer+len, 99-len, ":%d", ntohs(sockaddr->sin_port));
+	snprintf(buffer+len, 99-len, ":%d", ntohs(sockaddr->sin6_port));
 	
 	return buffer;
 }

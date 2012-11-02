@@ -12,9 +12,12 @@ ifneq ($(IS_DARWIN), 1)
 OBJS+= BlocksRuntime/libBlocksRuntime.a
 CFLAGS+=-pthread -fblocks -IBlocksRuntime/BlocksRuntime
 LDFLAGS+=-pthread
+else
+CFLAGS+=-DDARWIN
 endif
 
-%.o: %.c
+# Makefile dependency to recompile when flags changed
+%.o: %.c Makefile
 	@echo "[CC] $@"
 	@$(CC) $(CFLAGS) -MD -c -o $@ $<
 

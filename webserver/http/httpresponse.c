@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
 typedef enum {
 	kHTTPResponseSendingNotStarted,
@@ -109,6 +110,9 @@ HTTPResponse HTTPResponseCreate(HTTPConnection connection)
 void HTTPResponseDealloc(void* ptr)
 {
 	HTTPResponse response = ptr;
+	
+	if (response->responseFileDescriptor > 0)
+		close(response->responseFileDescriptor);
 	
 	free(response);
 }
@@ -287,7 +291,8 @@ static bool HTTPResponseSendBody(HTTPResponse response)
 			return false;
 	}
 	else if (response->responseFileDescriptor) {
-		
+		if (HTTPConnectionSendFD(response->connection, response->responseFileDescriptor, 0) > 0)
+			return false;
 	}
 
 	return true;

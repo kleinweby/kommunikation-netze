@@ -12,7 +12,7 @@
 //
 // Creates and accepts a new http connection
 //
-HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr info);
+HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr_in6 info);
 
 //
 // Closes the connection
@@ -36,6 +36,10 @@ HTTPResponse HTTPConnectionGetResponse(HTTPConnection connection);
 //
 ssize_t HTTPConnectionSend(HTTPConnection connection, const void *buffer, size_t length);
 
+//
+// Similar to HTTPConnectionSend but used an fd to send the
+// data. FD must be an regular file.
+//
 ssize_t HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length);
 
 #endif /* _HTTPCONNECTION_H_ */
