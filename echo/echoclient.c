@@ -77,8 +77,10 @@ void runloop(int socket) {
 	while(i == 0 || (strstr(buffer, "\n") == NULL && i < 254)) {
 		ssize_t s = recv(socket, buffer+i, 254-i, 0);
 		
-		if (s < 0)
+		if (s < 0) {
 			perror("recv");
+			exit(EXIT_FAILURE);
+		}
 		
 		i += s;
 	}
