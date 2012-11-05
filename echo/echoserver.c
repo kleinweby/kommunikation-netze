@@ -91,18 +91,26 @@ int main(int argc, char** argv) {
 	
 	if (argc == 1)
 		desiredPort = 0;
-	else if (argc == 2)
-		desiredPort = atoi(argv[1]);
+	else if (argc == 2) {
+		int port = atoi(argv[1]);
+		
+		if (port < 0 || port > UINT16_MAX) {
+			printf("Port is invalid.\n");
+			return EXIT_FAILURE;
+		}
+		
+		desiredPort = port;
+	}
 	else {
 		printf("%s [port]\n", argv[0]);
 		return EXIT_FAILURE;
 	}
-	
+		
 	printf("Opening server socket...\n");
 	server = openAndBindServerSocket(desiredPort);
 	
 	if (!server) {
-		perror("Could not open server socket:");
+		perror("Could not open server socket");
 		return EXIT_FAILURE;
 	}
 	
