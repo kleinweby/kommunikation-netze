@@ -60,8 +60,11 @@ ssize_t HTTPConnectionSend(HTTPConnection connection, const void *buffer, size_t
 
 //
 // Similar to HTTPConnectionSend but used an fd to send the
-// data. FD must be an regular file.
+// data.
 //
-ssize_t HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length);
+// Returns true if everything is sent, false if should be recalled
+// when data to the connection can be written
+//
+bool HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length);
 
 #endif /* _HTTPCONNECTION_H_ */

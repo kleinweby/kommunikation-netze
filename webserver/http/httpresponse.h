@@ -64,9 +64,8 @@ void HTTPResponseSetResponseFileDescriptor(HTTPResponse response, int fd);
 //
 // Sends the response over the connection.
 //
-// Warning: this blocks.
 //
-void HTTPResponseSendComplete(HTTPResponse response);
+bool HTTPResponseSend(HTTPResponse response);
 
 //
 // Marks the response as finished. It will be transmitted as soon

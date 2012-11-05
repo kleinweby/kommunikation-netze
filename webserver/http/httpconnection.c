@@ -65,6 +65,7 @@ struct _HTTPConnection {
 static void HTTPConnectionReadRequest(HTTPConnection connection);
 static void HTTPConnectionDealloc(void* ptr);
 static void HTTPProcessRequest(HTTPConnection connection);
+static void HTTPSendResponse(HTTPConnection connection, HTTPResponse response);
 
 //
 // Resolved a path. Path is to be freed when no longer needed.
@@ -227,7 +228,6 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	// We only support get for now
 	if (HTTPRequestGetMethod(request) != kHTTPMethodGet) {
 		HTTPResponseSetStatusCode(response, kHTTPErrorNotImplemented);
-		HTTPResponseSendComplete(response);
 		HTTPResponseFinish(response);
 		
 		Release(request);
@@ -242,7 +242,6 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	// Check the file
 	if (lstat(resolvedPath, &stat) < 0) {
 		HTTPResponseSetStatusCode(response, kHTTPBadNotFound);
-		HTTPResponseSendComplete(response);
 		HTTPResponseFinish(response);
 		perror("lstat");
 		
@@ -253,7 +252,6 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	
 	if (!S_ISREG(stat.st_mode)) {
 		HTTPResponseSetStatusCode(response, kHTTPBadNotFound);
-		HTTPResponseSendComplete(response);
 		HTTPResponseFinish(response);
 		printf("not regular\n");
 		
@@ -265,11 +263,29 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	HTTPResponseSetStatusCode(response, kHTTPOK);
 	//HTTPResponseSetResponseString(response, "Hallo wie geht's?");
 	HTTPResponseSetResponseFileDescriptor(response, open(resolvedPath, O_RDONLY));
-	HTTPResponseSendComplete(response);
 	HTTPResponseFinish(response);
 		
+	HTTPSendResponse(connection, response);
+	
 	Release(request);
 	Release(response);
+}
+
+static void HTTPSendResponse(HTTPConnection connection, HTTPResponse response)
+{
+	if (!HTTPResponseSend(response)) {
+		Retain(response);
+		Retain(connection);
+		PollRegister(ServerGetPoll(connection->server), connection->socket, 
+			POLLOUT|POLLHUP, 0, ServerGetOutputDispatchQueue(connection->server), ^(short revents) {
+#pragma unused(revents)
+				HTTPSendResponse(connection, response);
+				Release(response);
+				Release(connection);
+			});
+	}
+	else
+		HTTPConnectionClose(connection);
 }
 
 static char* HTTPResolvePath(HTTPRequest request, char* p)
@@ -293,21 +309,25 @@ ssize_t HTTPConnectionSend(HTTPConnection connection, const void *buffer, size_t
 	return send(connection->socket, buffer, length, 0);
 }
 
-ssize_t HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length)
+bool HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length)
 {
 #ifdef DARWIN
 	off_t len = (off_t)length;
 	off_t offset = lseek(fd, 0, SEEK_CUR);
+	int result;
 	
-	if (sendfile(fd, connection->socket, offset, &len, NULL, 0) < 0) {
+	result = sendfile(fd, connection->socket, offset, &len, NULL, 0);
+	
+	if (result < 0 && errno != EAGAIN) {
 		perror("sendfile");
 		return -1;
 	}
 	
 	lseek(fd, len, SEEK_CUR);
 	
-	printf("sent %lld\n", len);
-	return len;
+	if (result < 0 && errno == EAGAIN)
+		return false;
+	return len != 0;
 #else
 	ssize_t s;
 	

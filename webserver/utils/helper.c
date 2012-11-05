@@ -28,24 +28,44 @@
 
 #include "helper.h"
 
-char* stringFromSockaddrIn(struct sockaddr_in6 const* sockaddr) {
+char* stringFromSockaddrIn4(struct sockaddr_in const* sockaddr) {
 	char* buffer = malloc(100);
-	
-	if (!inet_ntop(sockaddr->sin6_family, &sockaddr->sin6_addr, buffer, 100))
+		
+	if (!inet_ntop(sockaddr->sin_family, &sockaddr->sin_addr, buffer, 100))
 		return NULL;
 	
 	size_t len = strlen(buffer);
 	
-	if (sockaddr->sin6_family == AF_INET6) {
-		memmove(buffer+1, buffer, strlen(buffer));
-		buffer[0] = '[';
-		buffer[len+1] = ']';
-		len+=2;
-    }
+	snprintf(buffer+len, 99-len, ":%d", ntohs(sockaddr->sin_port));
+	
+	return buffer;
+}
+
+char* stringFromSockaddrIn6(struct sockaddr_in6 const* sockaddr) {
+	char* buffer = malloc(100);
+	
+	buffer[0] = '[';
+	
+	if (!inet_ntop(sockaddr->sin6_family, &sockaddr->sin6_addr, buffer + 1, 99))
+		return NULL;
+	
+	size_t len = strlen(buffer);
+
+	buffer[len] = ']';
+	len++;
 	
 	snprintf(buffer+len, 99-len, ":%d", ntohs(sockaddr->sin6_port));
 	
 	return buffer;
+}
+
+char* stringFromSockaddrIn(struct sockaddr_in6 const* sockaddr) {
+	if (sockaddr->sin6_family == AF_INET6) {
+		return stringFromSockaddrIn6(sockaddr);
+    }
+	else {
+		return stringFromSockaddrIn4((struct sockaddr_in const*)sockaddr);
+	}
 }
 
 bool setBlocking(int socket, bool blocking) {

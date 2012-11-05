@@ -52,8 +52,6 @@ struct _Server {
 	//
 	struct sockaddr_in6 info;
 	socklen_t infoLength;
-	
-	pthread_t acceptThread;
 };
 
 struct _WebServer {
@@ -180,7 +178,7 @@ static Server CreateServer(WebServer webServer, struct addrinfo *serverInfo)
 	
 	printf("Listen on %s...\n", stringFromSockaddrIn(&server->info));
 	listen(server->socket, 300);
-	
+		
 	PollRegister(server->webServer->poll, server->socket, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
 #pragma unused(revents)
 		struct sockaddr_in6 info;

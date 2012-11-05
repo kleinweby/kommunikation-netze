@@ -106,7 +106,6 @@ static void HTTPResponseDealloc(void* ptr);
 // If returns false, you need to call this method
 // again when the socket is able to write data
 //
-static bool HTTPResponseSend(HTTPResponse response);
 static bool HTTPResponseSendStatusLine(HTTPResponse response);
 static bool HTTPResponseSendHeaders(HTTPResponse response);
 static bool HTTPResponseSendBody(HTTPResponse response);
@@ -169,7 +168,7 @@ void HTTPResponseSendComplete(HTTPResponse response)
 	//setBlocking(response->connection->socket, false);
 }
 
-static bool HTTPResponseSend(HTTPResponse response)
+bool HTTPResponseSend(HTTPResponse response)
 {
 	switch(response->sendStatus) {
 	case kHTTPResponseSendingNotStarted:
@@ -313,7 +312,7 @@ static bool HTTPResponseSendBody(HTTPResponse response)
 			return false;
 	}
 	else if (response->responseFileDescriptor) {
-		if (HTTPConnectionSendFD(response->connection, response->responseFileDescriptor, 0) > 0)
+		if (!HTTPConnectionSendFD(response->connection, response->responseFileDescriptor, 0))
 			return false;
 	}
 
