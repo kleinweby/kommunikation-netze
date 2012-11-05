@@ -288,6 +288,9 @@ ssize_t HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length)
 	printf("sent %lld\n", len);
 	return len;
 #else
+	ssize_t s;
+	
+	s = sendfile(connection->socket, fd, NULL, 0);
 #error Linux not supported yet
 #endif
 }
