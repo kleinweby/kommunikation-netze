@@ -186,7 +186,7 @@ static Server CreateServer(WebServer webServer, struct addrinfo *serverInfo)
 		struct sockaddr_in6 info;
 		socklen_t infoSize = sizeof(info);
 		int socket = accept(server->socket, (struct sockaddr*)&info, &infoSize);
-		
+		setTCPNoPush(socket, true);
 		if (socket) {
 			HTTPConnection connection = HTTPConnectionCreate(server, socket, info);
 			#pragma unused(connection)

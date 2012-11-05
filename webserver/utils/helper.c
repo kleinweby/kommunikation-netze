@@ -24,6 +24,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <netinet/tcp.h>
 
 #include "helper.h"
 
@@ -67,4 +68,15 @@ bool setBlocking(int socket, bool blocking) {
 	}
 	
 	return true;
+}
+
+bool setTCPNoPush(int socket, bool noPush)
+{
+	int state = noPush;
+	
+#ifdef DARWIN
+	return setsockopt(socket, IPPROTO_TCP, TCP_NOPUSH, &state, sizeof(state)) == 0;
+#else
+	return setsockopt(socket, IPPROTO_TCP, TCP_CORK, &state, sizeof(state)) == 0;
+#endif
 }

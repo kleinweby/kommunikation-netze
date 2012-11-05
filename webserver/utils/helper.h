@@ -25,4 +25,16 @@
 #include <stdbool.h>
 
 char* stringFromSockaddrIn(struct sockaddr_in6 const* sockaddr);
+
 bool setBlocking(int socket, bool blocking);
+
+//
+// Sets the tcp no push option on a socket. This
+// will result in the kernel waiting for the buffer to be full
+// before it will send the package out.
+//
+// Note: on linux this will be implemented through TCP_CORK.
+// Note: Disabling noPush will result in an flush and send
+// all acumlultated data.
+//
+bool setTCPNoPush(int socket, bool noPush);
