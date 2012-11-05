@@ -36,6 +36,7 @@
 #include "helper.h"
 
 static const int kMaxClients = 10;
+static const int kPollTimeout = 1000;
 
 typedef struct client client_t;
 typedef struct server server_t;
@@ -209,7 +210,7 @@ bool acceptNewClient(server_t* server) {
 		printf("Could not accept client %s. We're full.\n", "");
 		const char* msg = "Server full\n";
 		send(client->socket, msg, strlen(msg), 0);
-		//closeClient(client);
+		CloseClient(client);
 		return false;
 	}
 	
@@ -328,7 +329,7 @@ void runloop(server_t* server) {
 		}
 	}
 	
-	socksToHandle = poll(pollDescriptors, pollNumDescriptors, 10000);
+	socksToHandle = poll(pollDescriptors, pollNumDescriptors, kPollTimeout);
 
 	if (socksToHandle < 0) {
 		server->running = false;
@@ -362,7 +363,7 @@ void runloop(server_t* server) {
 				else {
 					for (int j = 0; j < kMaxClients; j++) {
 						if (server->clients[j] && server->clients[j]->socket == pollDescriptors[i].fd) {
-								CloseClient(server->clients[j]);
+							CloseClient(server->clients[j]);
 						}
 					}
 				}

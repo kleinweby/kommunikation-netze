@@ -1,3 +1,25 @@
+// Copyright (c) 2012, Christian Speich <christian@spei.ch>
+// All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//     * Redistributions of source code must retain the above copyright
+//       notice, this list of conditions and the following disclaimer.
+//     * Redistributions in binary form must reproduce the above copyright
+//       notice, this list of conditions and the following disclaimer in the
+//       documentation and/or other materials provided with the distribution.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+// ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+// DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 #include "helper.h"
 
 #include <sys/types.h>
@@ -52,7 +74,9 @@ int connectToServer(const char* host, const char* port) {
 		} 
 		else
 			break;
-	}	
+	}
+	
+	freeaddrinfo(result);
 	
 	return sock;
 }
@@ -61,16 +85,25 @@ void runloop(int socket) {
 	char buffer[255];
 	char* input;
 		
-	input = readline(">");
+	input = readline("> ");
 	
-	if (!input)
+	if (!input) {
+		close(socket);
 		exit(EXIT_SUCCESS);
+	}
 
-	send(socket, input, strlen(input), 0);
-	send(socket, "\n", 1, 0);
+	if (send(socket, input, strlen(input), 0) < 0) {
+		perror("send");
+		close(socket);
+		exit(EXIT_FAILURE);
+	}
+	if (send(socket, "\n", 1, 0) < 0) {
+		perror("send");
+		close(socket);
+		exit(EXIT_FAILURE);
+	}
 	free(input);
 	
-	printf("<");
 	memset(buffer, 0, 255);
 	int i = 0;
 
@@ -79,6 +112,7 @@ void runloop(int socket) {
 		
 		if (s < 0) {
 			perror("recv");
+			close(socket);
 			exit(EXIT_FAILURE);
 		}
 		
@@ -87,7 +121,7 @@ void runloop(int socket) {
 	
 	buffer[i] = '\0';
 	
-	printf("%s", buffer);
+	printf("< %s", buffer);
 }
 
 int main(int argc, char** argv) {
@@ -112,7 +146,7 @@ int main(int argc, char** argv) {
 	
 	while(true)
 		runloop(socket);
-		
+			
 	return EXIT_SUCCESS;
 }
 
@@ -123,6 +157,11 @@ char* readline(const char* prompt) {
 	char* buffer = malloc(20);
 	size_t size = 20;
 	int i = 0;
+	
+	if (buffer == NULL) {
+		perror("malloc");
+		return NULL;
+	}
 	
 	for(;;) {
 		char c = fgetc(stdin);
@@ -137,6 +176,11 @@ char* readline(const char* prompt) {
 		if (i >= size) {
 			size *= 2;
 			buffer = realloc(buffer, size);
+			
+			if (buffer == NULL) {
+				perror("realloc");
+				return NULL;
+			}
 		}
 		buffer[i] = c;
 		i++;
