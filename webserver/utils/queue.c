@@ -59,8 +59,8 @@ void QueueDestroy(Queue queue) {
 	struct _QueueElement* element = queue->head;
 	while (element != NULL) {
 		struct _QueueElement* old = element;
-		free(old);
 		element = old->next;
+		free(old);
 	}
 	
 	pthread_mutex_unlock(&queue->mutex);
