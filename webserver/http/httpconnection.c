@@ -223,6 +223,8 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	// We only support get for now
 	if (HTTPRequestGetMethod(request) != kHTTPMethodGet) {
 		HTTPResponseSetStatusCode(response, kHTTPErrorNotImplemented);
+		HTTPSendResponse(connection, response);
+		
 		HTTPResponseFinish(response);
 		
 		Release(request);

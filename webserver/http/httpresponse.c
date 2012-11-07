@@ -200,7 +200,7 @@ static bool HTTPResponseSendStatusLine(HTTPResponse response)
 		
 		uint maxLineLength = 255;
 		info->statusLine = malloc(sizeof(char) * maxLineLength);
-		snprintf(info->statusLine, maxLineLength, "HTTP/1.0 %3d %s\r\n", response->code, "");
+		snprintf(info->statusLine, maxLineLength, "HTTP/1.0 %3d %s\r\n", response->code, HTTPStatusNameFromCode(response->code));
 	}
 	
 	if (!HTTPResponseSendString(response, info->statusLine))

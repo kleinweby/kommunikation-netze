@@ -86,6 +86,15 @@ extern const char* kHTTPLineDelimiter;
 extern const char* kHTTPContentDelimiter;
 extern const char* kHTTPHeaderDelimiter;
 
+//
+// Returns a human readable version of an status code
+// usable in the status line of a response.
+// 
+// Returned string is staticly allocated and does NOT
+// need to be freed.
+//
+char* HTTPStatusNameFromCode(HTTPStatusCode code);
+
 DECLARE_CLASS(HTTPResponse);
 DECLARE_CLASS(HTTPRequest); 
 DECLARE_CLASS(HTTPConnection);
