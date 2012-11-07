@@ -315,21 +315,20 @@ bool HTTPConnectionSendFD(HTTPConnection connection, int fd, off_t* offset, size
 {
 #ifdef DARWIN
 	off_t len = (off_t)length;
-	off_t offset = lseek(fd, 0, SEEK_CUR);
 	int result;
 	
-	result = sendfile(fd, connection->socket, offset, &len, NULL, 0);
+	result = sendfile(fd, connection->socket, *offset, &len, NULL, 0);
 	
 	if (result < 0 && errno != EAGAIN) {
 		perror("sendfile");
 		return -1;
 	}
 	
-	lseek(fd, len, SEEK_CUR);
+	*offset += len;
 	
 	if (result < 0 && errno == EAGAIN)
 		return false;
-	return len != 0;
+	return len == 0;
 #else
 	ssize_t s;
 	
