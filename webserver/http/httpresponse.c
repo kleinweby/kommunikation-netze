@@ -162,16 +162,6 @@ void HTTPResponseSetResponseFileDescriptor(HTTPResponse response, int fd)
 	response->responseFileDescriptor = fd;
 }
 
-void HTTPResponseSendComplete(HTTPResponse response)
-{
-	//setBlocking(response->connection->socket, true);
-	
-	while (!HTTPResponseSend(response));
-	
-	HTTPConnectionClose(response->connection);
-	//setBlocking(response->connection->socket, false);
-}
-
 bool HTTPResponseSend(HTTPResponse response)
 {
 	switch(response->sendStatus) {
