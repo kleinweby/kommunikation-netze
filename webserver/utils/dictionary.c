@@ -21,44 +21,37 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "dictionary.h"
-#include "retainable.h"
 #include "stack.h"
 
 #include <string.h>
 #include <stdlib.h>
 
-typedef struct _DictionaryEntry* DictionaryEntry;
+DECLARE_CLASS(DictionaryEntry);
 
-struct _DictionaryEntry {
-	Retainable retainable;
-	
+DEFINE_CLASS(DictionaryEntry,	
 	const char* key;
 	const void* value;
 	
 	DictionaryEntry leftEntry;
 	DictionaryEntry rightEntry;
-};
+);
 
 static DictionaryEntry DictionaryEntryCreate(const char* key, const char* value);
 static void DictionaryEntrySetLeftEntry(DictionaryEntry entry, DictionaryEntry left);
 static void DictionaryEntrySetRightEntry(DictionaryEntry entry, DictionaryEntry right);
 static void DictionaryEntryDealloc(void* ptr);
 
-struct _DictionaryIterator {
-	Retainable retainable;
-	
+DEFINE_CLASS(DictionaryIterator,	
 	Dictionary dictionary;
 	DictionaryEntry currentEntry;
 	Stack stack;
-};
+);
 
 static void DictionaryIteratorDealloc(void* ptr);
 
-struct _Dictionary {
-	Retainable retainable;
-	
+DEFINE_CLASS(Dictionary,	
 	DictionaryEntry headEntry;
-};
+);
 
 static void DictionaryDealloc(void* ptr);
 
@@ -66,7 +59,7 @@ Dictionary DictionaryCreate()
 {
 	Dictionary dict = malloc(sizeof(struct _Dictionary));
 	
-	RetainableInitialize(&dict->retainable, DictionaryDealloc);
+	ObjectInit(dict, DictionaryDealloc);
 	
 	dict->headEntry = DictionaryEntryCreate("", NULL);
 	
@@ -135,7 +128,7 @@ static DictionaryEntry DictionaryEntryCreate(const char* key, const char* value)
 	
 	memset(entry, 0, sizeof(struct _DictionaryEntry));
 	
-	RetainableInitialize(&entry->retainable, DictionaryEntryDealloc);
+	ObjectInit(entry, DictionaryEntryDealloc);
 	
 	entry->key = key;
 	entry->value = value;
@@ -169,7 +162,7 @@ DictionaryIterator DictionaryGetIterator(Dictionary dict)
 	DictionaryIterator iter = malloc(sizeof(struct _DictionaryIterator));
 	
 	memset(iter, 0, sizeof(struct _DictionaryIterator));
-	RetainableInitialize(&iter->retainable, DictionaryIteratorDealloc);
+	ObjectInit(iter, DictionaryIteratorDealloc);
 	
 	iter->stack = StackCreate();
 	iter->dictionary = Retain(dict);

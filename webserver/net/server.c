@@ -187,7 +187,7 @@ static Server CreateServer(WebServer webServer, struct addrinfo *serverInfo)
 		setTCPNoPush(socket, true);
 		if (socket) {
 			HTTPConnection connection = HTTPConnectionCreate(server, socket, info);
-			#pragma unused(connection)
+			Release(connection);
 		}
 	});
 	

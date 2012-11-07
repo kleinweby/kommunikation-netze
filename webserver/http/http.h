@@ -23,6 +23,8 @@
 #ifndef _HTTP_H_
 #define _HTTP_H_
 
+#include "utils/object.h"
+
 typedef enum { 
 	kHTTPMethodGet,
 	kHTTPMethodUnkown
@@ -84,8 +86,8 @@ extern const char* kHTTPLineDelimiter;
 extern const char* kHTTPContentDelimiter;
 extern const char* kHTTPHeaderDelimiter;
 
-typedef struct _HTTPResponse* HTTPResponse;
-typedef struct _HTTPRequest* HTTPRequest; 
-typedef struct _HTTPConnection* HTTPConnection;
+DECLARE_CLASS(HTTPResponse);
+DECLARE_CLASS(HTTPRequest); 
+DECLARE_CLASS(HTTPConnection);
 
 #endif /* _HTTP_H_ */

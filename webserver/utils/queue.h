@@ -20,7 +20,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-typedef struct _Queue* Queue;
+#ifndef _QUEUE_H_
+#define _QUEUE_H_
+
+#include "utils/object.h"
+
+DECLARE_CLASS(Queue);
 
 //
 // Creates a new FIFO queue
@@ -54,3 +59,5 @@ void* QueueDrain(Queue queue);
 // is avaiable right now
 //
 void* QueueDequeue(Queue queue);
+
+#endif

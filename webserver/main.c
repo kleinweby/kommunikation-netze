@@ -24,6 +24,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "utils/object.h"
 #include "net/server.h"
 #include "utils/helper.h"
 
@@ -32,6 +33,7 @@ int main(int argc, char** argv) {
 #pragma unused(argv)
 	
 	setBlocking(0, false);
+	ObjectRuntimeInit();
 	
 	WebServer server = WebServerCreate("8080");
 	

@@ -21,7 +21,6 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "queue.h"
-#include "retainable.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -33,22 +32,20 @@ struct _QueueElement {
 	struct _QueueElement* next;
 };
 
-struct _Queue {
-	Retainable retainable;
-	
+DEFINE_CLASS(Queue,	
 	pthread_mutex_t mutex;
 	pthread_cond_t condition;
 	
 	struct _QueueElement* head;
 	struct _QueueElement* tail;
-};
+);
 
 Queue QueueCreate() {
 	Queue queue = malloc(sizeof(struct _Queue));
 	
 	memset(queue, 0, sizeof(struct _Queue));
 	
-	RetainableInitialize(&queue->retainable, (void (*)(void *))QueueDestroy);
+	ObjectInit(queue, (void (*)(void *))QueueDestroy);
 	
 	pthread_mutex_init(&queue->mutex, 0);
 	pthread_cond_init(&queue->condition, 0);

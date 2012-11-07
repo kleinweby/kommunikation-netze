@@ -20,41 +20,69 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-//
-// Simple helper to make structs retainable and therefore
-// to simplify the mmgt
-//
+#include "object.h"
 
-//
-// Incoperate the following struct as your first
-// member of the struct you want to be retainable.
-//
+#include <assert.h>
+#include <stdlib.h>
+#include <Block_private.h>
 
-typedef struct {
+bool ObjectRuntimeInit()
+{
+	_Block_use_RR((void (*)(const void *))Retain, (void (*)(const void *))Release);
+	
+	return true;
+}
+
+bool ObjectInit(void* _obj, void (*Dealloc)(void* ptr))
+{
+	assert(_obj != NULL);
+	
+	Object obj = _obj;
+	
+	obj->retainCount = 1;
+	obj->Dealloc = Dealloc;
+	
+	return true;
+}
+
+void* Retain(void* _obj)
+{
+	if (_obj == NULL)
+		return NULL;
+	
+	Object obj = _obj;
+	
+	int rc;
+		
+	rc = __sync_add_and_fetch(&obj->retainCount, 1);
+	
 	//
-	// Count how many objects hold a reference to this
-	// retainable.
+	// The retaincount must be greater than 1 because
+	// before it would be >=1 and we added one, so
+	// it must be > 1 now
 	//
-	int retainCount;
+	assert(rc > 1);
+	
+	return obj;
+}
+
+void Release(void* _obj)
+{
+	if (_obj == NULL)
+		return;
+	
+	Object obj = _obj;
+	
+	int rc;
+		
+	rc = __sync_sub_and_fetch(&obj->retainCount, 1);
+	
 	//
-	// Is called when retain Count reaches zero
+	// < 0 Would mean double free
 	//
-	void (*Dealloc)(void* ptr);
-} Retainable;
-
-//
-// Call this once when the struct you want to be reaintable
-// is created. Will set rc to 1
-//
-void RetainableInitialize(void* ptr, void (*Dealloc)(void* ptr));
-
-//
-// Will increase the rc by one.
-//
-void* Retain(void* ptr);
-
-//
-// Will decrease the rc and
-// invoke destroy on rc=0
-//
-void Release(void* ptr);
+	assert(rc >= 0);
+	
+	if (rc == 0 && obj->Dealloc) {
+		obj->Dealloc(obj);
+	}
+}

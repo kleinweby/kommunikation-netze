@@ -27,7 +27,6 @@
 #include "utils/str_helper.h"
 #include "utils/dictionary.h"
 #include "utils/helper.h"
-#include "utils/retainable.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -45,9 +44,7 @@ typedef enum {
 	HTTPConnectionProcessingRequest
 } HTTPConnectionState;
 
-struct _HTTPConnection {
-	Retainable retainable;
-	
+DEFINE_CLASS(HTTPConnection,
 	int socket;
 	
 	Server server;
@@ -60,7 +57,7 @@ struct _HTTPConnection {
 	char* buffer;
 	size_t bufferFilled;
 	size_t bufferLength;
-};
+);
 
 static void HTTPConnectionReadRequest(HTTPConnection connection);
 static void HTTPConnectionDealloc(void* ptr);
@@ -80,7 +77,7 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr_i
 	
 	memset(connection, 0, sizeof(struct _HTTPConnection));
 	
-	RetainableInitialize(&connection->retainable, HTTPConnectionDealloc);
+	ObjectInit(connection, HTTPConnectionDealloc);
 	
 	connection->server = server;
 	memcpy(&connection->info, &info, sizeof(struct sockaddr_in6));
@@ -220,10 +217,13 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 
 static void HTTPProcessRequest(HTTPConnection connection)
 {	
-	HTTPRequest request = HTTPRequestCreate(connection->buffer);
+	HTTPRequest request;
 	HTTPResponse response = HTTPResponseCreate(connection);
 	struct stat stat;
 	char* resolvedPath;
+	
+	request = HTTPRequestCreate(connection->buffer);
+	connection->buffer = NULL;
 	
 	// We only support get for now
 	if (HTTPRequestGetMethod(request) != kHTTPMethodGet) {

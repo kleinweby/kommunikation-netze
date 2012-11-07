@@ -21,7 +21,6 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "poll.h"
-#include "utils/retainable.h"
 #include "utils/queue.h"
 #include "utils/helper.h"
 
@@ -45,9 +44,7 @@ struct _PollUpdate {
 	struct _PollInfo pollInfo;
 };
 
-struct _Poll {
-	Retainable retainable;
-	
+DEFINE_CLASS(Poll,	
 	pthread_t thread;
 	
 	//
@@ -69,7 +66,7 @@ struct _Poll {
 	struct _PollInfo* pollInfos;
 	uint32_t numOfPolls;
 	uint32_t numOfSlots;
-};
+);
 
 static void* PollThread(void* ptr);
 static void PollDealloc(void* ptr);
@@ -81,7 +78,7 @@ Poll PollCreate()
 	
 	memset(poll, 0, sizeof(struct _Poll));
 	
-	RetainableInitialize(&poll->retainable, PollDealloc);
+	ObjectInit(poll, PollDealloc);
 	
 	poll->numOfSlots = 10;
 	poll->numOfPolls = 0;

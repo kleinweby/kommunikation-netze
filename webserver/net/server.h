@@ -23,12 +23,12 @@
 #ifndef _SERVER_H_
 #define _SERVER_H_
 
-#include "utils/DispatchQueue.h"
+#include "utils/object.h"
+#include "utils/dispatchqueue.h"
 #include "net/Poll.h"
 
 typedef struct _WebServer* WebServer;
 typedef struct _Server* Server;
-
 
 //
 // Initialize the web server with the cmd arguments

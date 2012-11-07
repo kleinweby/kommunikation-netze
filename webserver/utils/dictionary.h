@@ -23,10 +23,12 @@
 #ifndef _DICTIONARY_H_
 #define _DICTIONARY_H_
 
+#include "utils/object.h"
+
 #include <stdbool.h>
 
-typedef struct _Dictionary* Dictionary;
-typedef struct _DictionaryIterator* DictionaryIterator;
+DECLARE_CLASS(Dictionary);
+DECLARE_CLASS(DictionaryIterator);
 
 //
 // Creates a new empty dictionary;

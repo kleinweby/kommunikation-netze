@@ -23,7 +23,9 @@
 #ifndef _DISPATCH_QUEUE_H_
 #define _DISPATCH_QUEUE_H_
 
-typedef struct _DispatchQueue* DispatchQueue;
+#include "utils/object.h"
+
+DECLARE_CLASS(DispatchQueue);
 
 typedef enum {
 	//

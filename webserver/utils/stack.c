@@ -22,19 +22,15 @@
 
 #include "stack.h"
 
-#include "retainable.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 
-struct _Stack {
-	Retainable retainable;
-	
+DEFINE_CLASS(Stack,	
 	void** stack;
 	int32_t uppermostObject;
 	uint32_t slots;
-};
+);
 
 static void StackDealloc(void* ptr);
 
@@ -43,7 +39,7 @@ Stack StackCreate()
 	Stack stack = malloc(sizeof(struct _Stack));
 	
 	memset(stack, 0, sizeof(struct _Stack));
-	RetainableInitialize(&stack->retainable, StackDealloc);
+	ObjectInit(stack, StackDealloc);
 	
 	stack->uppermostObject = -1;
 	stack->slots = 2;

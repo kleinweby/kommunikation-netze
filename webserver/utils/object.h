@@ -20,45 +20,76 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "retainable.h"
+#ifndef _OBJECT_H_
+#define _OBJECT_H_
 
-#include <stdlib.h>
-#include <assert.h>
+#include <stdbool.h>
 
-void RetainableInitialize(void* ptr, void (*Dealloc)(void* ptr)) {
-	Retainable* retainable = ptr;
+//
+// Internal opaque object structure. Do NOT use
+// it in any way.
+//
+struct _Object {
+	//
+	// A magic to look if its really an object
+	//
+	char magic[4];
 	
-	retainable->retainCount = 1;
-	retainable->Dealloc = Dealloc;
+	//
+	// Count how many objects hold a reference to this
+	// retainable.
+	//
+	int retainCount;
+	//
+	// Is called when retain Count reaches zero
+	//
+	void (*Dealloc)(void* ptr);
+};
+
+//
+// Call this to declare that a class with the name A
+// exists
+//
+#define DECLARE_CLASS(A) typedef struct _##A* A __attribute__((NSObject))
+
+//
+// Call this (usually in the implementation) to define your
+// class and this member variables
+//
+#define DEFINE_CLASS(A, x)\
+struct _##A {\
+	struct _Object object;\
+	x\
 }
 
-void* Retain(void* ptr) {
-	Retainable* retainable = ptr;
-	int rc;
-	
-	assert(retainable->retainCount > 0);
-	
-	rc = __sync_add_and_fetch(&retainable->retainCount, 1);
-	
-	assert(rc > 0);
-	
-	return ptr;
-}
+//
+// Declares a gerneral object class
+//
+DECLARE_CLASS(Object);
 
-void Release(void* ptr) {
-	if (ptr == NULL)
-		return;
-	
-	Retainable* retainable = ptr;
-	int rc;
-	
-	assert(retainable->retainCount > 0);
-	
-	rc = __sync_sub_and_fetch(&retainable->retainCount, 1);
-	
-	assert(rc >= 0);
-	
-	if (rc == 0 && retainable->Dealloc) {
-		retainable->Dealloc(ptr);
-	}
-}
+//
+// Call this before you use any object, this will
+// initialize the runtime elements of the object
+// structure (mainly the blocks integration).
+//
+bool ObjectRuntimeInit();
+
+//
+// Call this at the beginning of the object creation
+// it will set the retaincount to 1.
+//
+bool ObjectInit(void* object, void (*Dealloc)(void* ptr));
+
+//
+// Increases the retain count by 1.
+//
+// Note: this will crash when the retain count is < 1
+//
+void* Retain(void* object);
+
+//
+// Releases the reference to this object.
+//
+void Release(void* object);
+
+#endif

@@ -23,15 +23,12 @@
 #include "httprequest.h"
 
 #include "utils/str_helper.h"
-#include "utils/retainable.h"
 #include "utils/dictionary.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-struct _HTTPRequest {
-	Retainable retainable;
-	
+DEFINE_CLASS(HTTPRequest,
 	//
 	// The method of the http request
 	//
@@ -58,8 +55,8 @@ struct _HTTPRequest {
 	// in path, headers etc. Therefore we must free this
 	// when the request is destroyed.
 	//
-	void* inputBakcend;
-};
+	void* inputBackend;
+);
 
 static void HTTPRequestParse(HTTPRequest request, char* buffer);
 static void HTTPRequestParseActionLine(HTTPRequest request, char* line);
@@ -80,9 +77,10 @@ HTTPRequest HTTPRequestCreate(char* buffer)
 	
 	memset(request, 0, sizeof(struct _HTTPRequest));
 	
-	RetainableInitialize(&request->retainable, HTTPRequestDealloc);
+	ObjectInit(request, HTTPRequestDealloc);
 	
 	request->headerDictionary = DictionaryCreate();
+	request->inputBackend = buffer;
 	
 	HTTPRequestParse(request, buffer);
 	
@@ -107,6 +105,9 @@ const char* HTTPRequestGetHeaderValueForKey(HTTPRequest request, const char* key
 void HTTPRequestDealloc(void* ptr)
 {
 	HTTPRequest request = ptr;
+	
+	if (request->inputBackend)
+		free(request->inputBackend);
 	
 	free(request);
 }

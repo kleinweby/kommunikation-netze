@@ -22,7 +22,6 @@
 
 #include "httpresponse.h"
 
-#include "utils/retainable.h"
 #include "utils/dictionary.h"
 #include "utils/helper.h"
 
@@ -63,9 +62,7 @@ struct _HTTPResponseSendHeadersInfo {
 	DictionaryIterator iter;
 };
 
-struct _HTTPResponse {
-	Retainable retainable;
-	
+DEFINE_CLASS(HTTPResponse,
 	//
 	// The connection this resposne is accosiated to
 	//
@@ -97,7 +94,7 @@ struct _HTTPResponse {
 	// Extra status for sending by the current step
 	//
 	void* sendStatusExtra;
-};
+);
 
 // Convienience method for an error condition
 static void HTTPResponseDealloc(void* ptr);
@@ -118,7 +115,7 @@ HTTPResponse HTTPResponseCreate(HTTPConnection connection)
 	
 	memset(response, 0, sizeof(struct _HTTPResponse));
 	
-	RetainableInitialize(&response->retainable, HTTPResponseDealloc);
+	ObjectInit(response, HTTPResponseDealloc);
 	
 	response->connection = connection;
 	response->headerDictionary = DictionaryCreate();

@@ -1,19 +1,16 @@
 CC?=clang
-CFLAGS=-Weverything -Wno-padded -Wno-missing-prototypes -Werror -std=gnu99 -ggdb -I. -pipe
+CFLAGS=-Weverything -Wno-padded -Wno-missing-prototypes -Werror -std=gnu99 -ggdb -I. -pipe -IBlocksRuntime/BlocksRuntime -D$(shell uname | tr '[:lower:]' '[:upper:]')
 LDFLAGS=-pipe
 
 # Not the best but should work
 IS_DARWIN=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
 
-SRC=http/http.c http/httpconnection.c http/httprequest.c http/httpresponse.c net/server.c net/poll.c utils/dictionary.c utils/dispatchqueue.c utils/helper.c utils/queue.c utils/retainable.c utils/str_helper.c utils/stack.c main.c
-OBJS=$(SRC:.c=.o)
+SRC=http/http.c http/httpconnection.c http/httprequest.c http/httpresponse.c net/server.c net/poll.c utils/dictionary.c utils/dispatchqueue.c utils/helper.c utils/queue.c utils/object.c utils/str_helper.c utils/stack.c main.c
+OBJS=$(SRC:.c=.o) BlocksRuntime/libBlocksRuntime.a
 
 ifneq ($(IS_DARWIN), 1)
-OBJS+= BlocksRuntime/libBlocksRuntime.a
-CFLAGS+=-pthread -fblocks -IBlocksRuntime/BlocksRuntime
+CFLAGS+=-pthread -fblocks
 LDFLAGS+=-pthread
-else
-CFLAGS+=-DDARWIN
 endif
 
 # Makefile dependency to recompile when flags changed
@@ -30,6 +27,10 @@ all: webserver
 webserver: $(OBJS)
 	@echo "[LD] $@"
 	@$(CC) $(LDFLAGS) -o $@ $^
+	
+test: test.o utils/retainable.c BlocksRuntime/libBlocksRuntime.a
+	@echo "[LD] $@"
+	@$(CC) $(LDFLAGS) -o $@ $^
 
 BlocksRuntime/libBlocksRuntime.a:
 	cd BlocksRuntime && ./buildlib
@@ -40,4 +41,4 @@ clean:
 	rm -f $(OBJS)
 	rm -f $(OBJS:.o=.d)
 	
--include $(OBJS:.o=.d)
+-include $(SRC:.c=.d)

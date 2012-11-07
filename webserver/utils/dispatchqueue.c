@@ -21,7 +21,6 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "dispatchqueue.h"
-#include "retainable.h"
 #include "queue.h"
 
 #include <pthread.h>
@@ -31,15 +30,13 @@
 #include <stdint.h>
 #include <Block.h>
 
-struct _DispatchQueue {
-	Retainable retainable;
-	
+DEFINE_CLASS(DispatchQueue,	
 	Queue queue;
 	
 	pthread_t* threads;
 	uint32_t numOfThreads;
 	uint32_t maxThreads;
-};
+);
 
 static void* _DispatchQueueThread(void* ptr);
 static void _DispatchQueueDrainAndRelease(DispatchQueue queue);
@@ -51,7 +48,7 @@ DispatchQueue DispatchQueueCreate(DispatchQueueFlags flags)
 	
 	memset(queue, 0, sizeof(struct _DispatchQueue));
 	
-	RetainableInitialize(&queue->retainable, _DisptachQueueDealloc);
+	ObjectInit(queue, _DisptachQueueDealloc);
 	queue->queue = QueueCreate();
 	
 	queue->maxThreads = (flags & kDispatchQueueSerial) ? 1 : 10;

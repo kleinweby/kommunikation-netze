@@ -23,7 +23,9 @@
 #ifndef _STACK_H_
 #define _STACK_H_
 
-typedef struct _Stack* Stack;
+#include "utils/object.h"
+
+DECLARE_CLASS(Stack);
 
 //
 // Create a new stack
