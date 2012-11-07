@@ -185,21 +185,17 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		connection->state = HTTPConnectionProcessingRequest;
 		
 		// For the block
-		Retain(connection);
 		Dispatch(ServerGetProcessingDispatchQueue(connection->server), ^{
 			HTTPProcessRequest(connection);
-			Release(connection);
 		});
 	}
 	else {
 		// For the block
-		Retain(connection);
 		PollRegister(ServerGetPoll(connection->server), connection->socket, 
 			POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(short revents) {
 				if ((revents & POLLHUP) > 0) {
 					close(connection->socket);
 					connection->socket = 0;
-					Release(connection);
 					return;
 				}
 	
@@ -210,7 +206,6 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 				case HTTPConnectionProcessingRequest:
 					break;
 				}
-				Release(connection);
 			});
 	}
 }
@@ -274,14 +269,10 @@ static void HTTPProcessRequest(HTTPConnection connection)
 static void HTTPSendResponse(HTTPConnection connection, HTTPResponse response)
 {
 	if (!HTTPResponseSend(response)) {
-		Retain(response);
-		Retain(connection);
 		PollRegister(ServerGetPoll(connection->server), connection->socket, 
 			POLLOUT|POLLHUP, 0, ServerGetOutputDispatchQueue(connection->server), ^(short revents) {
 #pragma unused(revents)
 				HTTPSendResponse(connection, response);
-				Release(response);
-				Release(connection);
 			});
 	}
 	else
