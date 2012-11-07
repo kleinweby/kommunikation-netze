@@ -65,6 +65,6 @@ ssize_t HTTPConnectionSend(HTTPConnection connection, const void *buffer, size_t
 // Returns true if everything is sent, false if should be recalled
 // when data to the connection can be written
 //
-bool HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length);
+bool HTTPConnectionSendFD(HTTPConnection connection, int fd, off_t* offset, size_t length);
 
 #endif /* _HTTPCONNECTION_H_ */

@@ -38,6 +38,9 @@
 #include <Block.h>
 #include <assert.h>
 #include <pthread.h>
+#ifdef LINUX
+#include <signal.h>
+#endif
 
 struct _Server {
 	WebServer webServer;
