@@ -81,7 +81,7 @@ WebServer WebServerCreate(char* port)
 	webServer->inputQueue = DispatchQueueCreate(0);
 	webServer->outputQueue = DispatchQueueCreate(0);
 	webServer->processingQueue = DispatchQueueCreate(0);
-	
+	webServer->numberOfServers = 0;
 	webServer->poll = PollCreate();
 	
 	signal(SIGPIPE, SIG_IGN);
