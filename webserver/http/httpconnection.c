@@ -349,7 +349,7 @@ bool HTTPConnectionSendFD(HTTPConnection connection, int fd, off_t* offset, size
 	
 	if (s < 0 && errno == EAGAIN)
 		return false;
-	return s != 0;
+	return s == 0;
 #endif
 }
 
