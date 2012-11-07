@@ -25,7 +25,7 @@
 
 #include "utils/object.h"
 #include "utils/dispatchqueue.h"
-#include "net/Poll.h"
+#include "net/poll.h"
 
 typedef struct _WebServer* WebServer;
 typedef struct _Server* Server;

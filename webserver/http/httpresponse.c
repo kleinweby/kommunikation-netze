@@ -29,6 +29,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 typedef enum {
 	kHTTPResponseSendingNotStarted,
@@ -45,6 +46,12 @@ struct _HTTPResponseSendGeneralInfo {
 struct _HTTPResponseSendStatusLineInfo {
 	struct _HTTPResponseSendGeneralInfo gernal;
 	char* statusLine;
+};
+
+struct _HTTPResponseSendBodyInfo {
+	struct _HTTPResponseSendGeneralInfo gernal;
+	off_t fileOffset;
+	size_t fileSize;
 };
 
 typedef enum {
@@ -153,16 +160,6 @@ void HTTPResponseSetResponseString(HTTPResponse response, char* string)
 void HTTPResponseSetResponseFileDescriptor(HTTPResponse response, int fd)
 {
 	response->responseFileDescriptor = fd;
-}
-
-void HTTPResponseSendComplete(HTTPResponse response)
-{
-	//setBlocking(response->connection->socket, true);
-	
-	while (!HTTPResponseSend(response));
-	
-	HTTPConnectionClose(response->connection);
-	//setBlocking(response->connection->socket, false);
 }
 
 bool HTTPResponseSend(HTTPResponse response)
@@ -294,14 +291,23 @@ static bool HTTPResponseSendHeaders(HTTPResponse response)
 
 static bool HTTPResponseSendBody(HTTPResponse response)
 {
-	struct _HTTPResponseSendGeneralInfo* info = response->sendStatusExtra;
+	struct _HTTPResponseSendBodyInfo* info = response->sendStatusExtra;
 	
 	if (!info) {
-		response->sendStatusExtra = malloc(sizeof(struct _HTTPResponseSendGeneralInfo));
+		response->sendStatusExtra = malloc(sizeof(struct _HTTPResponseSendBodyInfo));
 		
-		memset(response->sendStatusExtra, 0, sizeof(struct _HTTPResponseSendGeneralInfo));
+		memset(response->sendStatusExtra, 0, sizeof(struct _HTTPResponseSendBodyInfo));
 		
 		info = response->sendStatusExtra;
+		
+		if (response->responseFileDescriptor) {
+			struct stat stat;
+			
+			if (fstat(response->responseFileDescriptor, &stat) < 0) {
+				perror("fstat");
+			}
+			info->fileSize = (size_t)stat.st_size;
+		}
 	}
 
 	if (response->responseString) {
@@ -309,7 +315,7 @@ static bool HTTPResponseSendBody(HTTPResponse response)
 			return false;
 	}
 	else if (response->responseFileDescriptor) {
-		if (!HTTPConnectionSendFD(response->connection, response->responseFileDescriptor, 0))
+		if (!HTTPConnectionSendFD(response->connection, response->responseFileDescriptor, &info->fileOffset, info->fileSize - (size_t)info->fileOffset))
 			return false;
 	}
 

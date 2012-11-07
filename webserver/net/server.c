@@ -38,6 +38,9 @@
 #include <Block.h>
 #include <assert.h>
 #include <pthread.h>
+#ifdef LINUX
+#include <signal.h>
+#endif
 
 struct _Server {
 	WebServer webServer;
@@ -78,7 +81,7 @@ WebServer WebServerCreate(char* port)
 	webServer->inputQueue = DispatchQueueCreate(0);
 	webServer->outputQueue = DispatchQueueCreate(0);
 	webServer->processingQueue = DispatchQueueCreate(0);
-	
+	webServer->numberOfServers = 0;
 	webServer->poll = PollCreate();
 	
 	signal(SIGPIPE, SIG_IGN);

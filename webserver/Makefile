@@ -1,4 +1,4 @@
-CC?=clang
+CC=clang
 CFLAGS=-Weverything -Wno-padded -Wno-missing-prototypes -Werror -std=gnu99 -ggdb -I. -pipe -IBlocksRuntime/BlocksRuntime -D$(shell uname | tr '[:lower:]' '[:upper:]')
 LDFLAGS=-pipe
 

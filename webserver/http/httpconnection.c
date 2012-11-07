@@ -38,6 +38,15 @@
 #include <sys/param.h>
 #include <errno.h>
 #include <fcntl.h>
+#ifdef LINUX
+#include <sys/sendfile.h>
+#endif
+
+#ifdef DARWIN
+const char* kHTTPDocumentRoot = "/Users/christian/Public/";
+#else
+const char* kHTTPDocumentRoot = "/home/speich/htdocs";
+#endif
 
 typedef enum {
 	HTTPConnectionReadingRequest,
@@ -287,7 +296,7 @@ static char* HTTPResolvePath(HTTPRequest request, char* p)
 	char* path = malloc(sizeof(char) * PATH_MAX);
 	char* real;
 	
-	strncpy(path, "/Users/christian/Public/", PATH_MAX);
+	strncpy(path, kHTTPDocumentRoot, PATH_MAX);
 	strncat(path, p, PATH_MAX);
 	
 	real = realpath(path, NULL);
@@ -302,7 +311,7 @@ ssize_t HTTPConnectionSend(HTTPConnection connection, const void *buffer, size_t
 	return send(connection->socket, buffer, length, 0);
 }
 
-bool HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length)
+bool HTTPConnectionSendFD(HTTPConnection connection, int fd, off_t* offset, size_t length)
 {
 #ifdef DARWIN
 	off_t len = (off_t)length;
@@ -324,8 +333,16 @@ bool HTTPConnectionSendFD(HTTPConnection connection, int fd, size_t length)
 #else
 	ssize_t s;
 	
-	s = sendfile(connection->socket, fd, NULL, 0);
-#error Linux not supported yet
+	s = sendfile(connection->socket, fd, offset, length);
+
+	if (s < 0 && errno != EAGAIN) {
+		perror("sendfile");
+		return -1;
+	}
+	
+	if (s < 0 && errno == EAGAIN)
+		return false;
+	return s == 0;
 #endif
 }
 
