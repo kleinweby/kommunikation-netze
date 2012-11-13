@@ -22,8 +22,10 @@
 
 #include "dispatchqueue.h"
 #include "queue.h"
+#include "helper.h"
 
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -36,6 +38,8 @@ DEFINE_CLASS(DispatchQueue,
 	pthread_t* threads;
 	uint32_t numOfThreads;
 	uint32_t maxThreads;
+	
+	sem_t* semaphore;
 );
 
 static void* _DispatchQueueThread(void* ptr);
@@ -49,6 +53,15 @@ DispatchQueue DispatchQueueCreate(DispatchQueueFlags flags)
 	memset(queue, 0, sizeof(struct _DispatchQueue));
 	
 	ObjectInit(queue, _DisptachQueueDealloc);
+		
+	queue->semaphore = sem_open_anon();
+	
+	if (queue->semaphore == SEM_FAILED) {
+		perror("sem_init");
+		Release(queue);
+		return NULL;
+	}
+	
 	queue->queue = QueueCreate();
 	
 	queue->maxThreads = (flags & kDispatchQueueSerial) ? 1 : 10;
@@ -71,6 +84,7 @@ DispatchQueue DispatchQueueCreate(DispatchQueueFlags flags)
 void Dispatch(DispatchQueue queue, void(^block)())
 {
 	QueueEnqueue(queue->queue, Block_copy(block));
+	sem_post(queue->semaphore);
 }
 
 static void* _DispatchQueueThread(void* ptr)
@@ -84,10 +98,13 @@ static void* _DispatchQueueThread(void* ptr)
 
 static void _DispatchQueueDrainAndRelease(DispatchQueue queue)
 {
+	sem_wait(queue->semaphore);
 	void (^block)() = QueueDrain(queue->queue);
 	
-	block();
-	Block_release(block);
+	if (block) {
+		block();
+		Block_release(block);
+	}
 }
 
 static void _DisptachQueueDealloc(void* ptr)

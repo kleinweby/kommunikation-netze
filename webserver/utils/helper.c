@@ -100,3 +100,22 @@ bool setTCPNoPush(int socket, bool noPush)
 	return setsockopt(socket, IPPROTO_TCP, TCP_CORK, &state, sizeof(state)) == 0;
 #endif
 }
+
+sem_t* sem_open_anon()
+{
+	static const char* kSemTempName = "sem-temp";
+	sem_t* sem;
+	
+	sem = sem_open(kSemTempName, O_CREAT|O_EXCL);
+	
+	if (sem == SEM_FAILED) {
+		perror("sem_open");
+		return NULL;
+	}
+	
+	if (sem_unlink(kSemTempName) < 0) {
+		perror("WARN: sem_unlin");
+	}
+	
+	return sem;
+}

@@ -23,6 +23,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdbool.h>
+#include <semaphore.h>
 
 char* stringFromSockaddrIn(struct sockaddr_in6 const* sockaddr);
 
@@ -38,3 +39,10 @@ bool setBlocking(int socket, bool blocking);
 // all acumlultated data.
 //
 bool setTCPNoPush(int socket, bool noPush);
+
+//
+// Opens an anonymous semaphore.
+//
+// Because sem_init is not avaiable under darwin
+//
+sem_t* sem_open_anon();

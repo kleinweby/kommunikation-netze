@@ -63,9 +63,8 @@ struct _WebServer {
 	
 	bool keepRunning;
 
-	DispatchQueue inputQueue;
+	DispatchQueue ioQueue;
 	DispatchQueue processingQueue;
-	DispatchQueue outputQueue;
 	
 	Queue pollUpdateQueue;
 	Poll poll;
@@ -78,8 +77,7 @@ WebServer WebServerCreate(char* port)
 {
 	WebServer webServer = malloc(sizeof(struct _WebServer));
 		
-	webServer->inputQueue = DispatchQueueCreate(0);
-	webServer->outputQueue = DispatchQueueCreate(0);
+	webServer->ioQueue = DispatchQueueCreate(0);
 	webServer->processingQueue = DispatchQueueCreate(0);
 	webServer->numberOfServers = 0;
 	webServer->poll = PollCreate();
@@ -204,12 +202,12 @@ int ServerGetSocket(Server server)
 
 DispatchQueue ServerGetInputDispatchQueue(Server server)
 {
-	return server->webServer->inputQueue;
+	return server->webServer->ioQueue;
 }
 
 DispatchQueue ServerGetOutputDispatchQueue(Server server)
 {
-	return server->webServer->outputQueue;
+	return server->webServer->ioQueue;
 }
 
 DispatchQueue ServerGetProcessingDispatchQueue(Server server)

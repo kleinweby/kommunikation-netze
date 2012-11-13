@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <Block_private.h>
+#include <string.h>
 
 bool ObjectRuntimeInit()
 {
@@ -41,6 +42,7 @@ bool ObjectInit(void* _obj, void (*Dealloc)(void* ptr))
 	
 	obj->retainCount = 1;
 	obj->Dealloc = Dealloc;
+	memcpy(obj->magic, "OBJT", 4);
 	
 	return true;
 }
@@ -83,6 +85,8 @@ void Release(void* _obj)
 	assert(rc >= 0);
 	
 	if (rc == 0 && obj->Dealloc) {
+		memcpy(obj->magic, "DEOB", 4);
+		
 		obj->Dealloc(obj);
 	}
 }

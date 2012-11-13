@@ -21,21 +21,29 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "queue.h"
+#include "helper.h"
 
 #include <string.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <assert.h>
+
+//
+// dequeue and queue borrowed from http://www.cs.rochester.edu/research/synchronization/pseudocode/queues.html
+//
 
 struct _QueueElement {
 	void* element;
 	
 	struct _QueueElement* next;
+	bool dequeued;
 };
 
-DEFINE_CLASS(Queue,	
-	pthread_mutex_t mutex;
-	pthread_cond_t condition;
-	
+DEFINE_CLASS(Queue,
 	struct _QueueElement* head;
 	struct _QueueElement* tail;
 );
@@ -47,15 +55,16 @@ Queue QueueCreate() {
 	
 	ObjectInit(queue, (void (*)(void *))QueueDestroy);
 	
-	pthread_mutex_init(&queue->mutex, 0);
-	pthread_cond_init(&queue->condition, 0);
+	struct _QueueElement* node = malloc(sizeof(struct _QueueElement));
+	memset(node, 0, sizeof(struct _QueueElement));
+	
+	queue->head = node;
+	queue->tail = node;
 	
 	return queue;
 }
 
-void QueueDestroy(Queue queue) {
-	pthread_mutex_lock(&queue->mutex);
-	
+void QueueDestroy(Queue queue) {	
 	struct _QueueElement* element = queue->head;
 	while (element != NULL) {
 		struct _QueueElement* old = element;
@@ -63,73 +72,72 @@ void QueueDestroy(Queue queue) {
 		free(old);
 	}
 	
-	pthread_mutex_unlock(&queue->mutex);
 	free(queue);
 }
 
 void QueueEnqueue(Queue queue, void* e) {
-	struct _QueueElement* element = malloc(sizeof(struct _QueueElement));
+	struct _QueueElement* node = malloc(sizeof(struct _QueueElement));
+	struct _QueueElement* tail;
+	struct _QueueElement* next;
 	
-	memset(element, 0, sizeof(struct _QueueElement));
+	memset(node, 0, sizeof(struct _QueueElement));
 	
-	element->element = e;
+	node->element = e;
+	node->dequeued = false;
 	
-	pthread_mutex_lock(&queue->mutex);
-	if (queue->tail) {
-		queue->tail->next = element;
-		queue->tail = element;
+	while(1) { // Keep trying until Enqueue is done
+		tail = queue->tail; // Read Tail.ptr and Tail.count together
+		next = tail->next; // Read next ptr and count fields together
+		if (tail == queue->tail) {// Are tail and next consistent?
+			// Was Tail pointing to the last node?
+			if (next == NULL) {
+				// Try to link node at the end of the linked list
+				if (__sync_bool_compare_and_swap(&tail->next, next, node)) {
+					break; // Enqueue is done.  Exit loop
+				}
+			}
+			else { // Tail was not pointing to the last node
+				// Try to swing Tail to the next node
+				__sync_bool_compare_and_swap(&queue->tail, tail, next);
+			}
+		}
 	}
-	else {
-		queue->head = element;
-		queue->tail = element;
-	}
-	pthread_mutex_unlock(&queue->mutex);
-	pthread_cond_broadcast(&queue->condition);
+	
+	// Enqueue is done.  Try to swing Tail to the inserted node
+	__sync_bool_compare_and_swap(&queue->tail, tail, node);
 }
 
-void* QueueDrain(Queue queue) {
-	struct _QueueElement* element = NULL;
-	void* e;
-	
-	pthread_mutex_lock(&queue->mutex);
-	
-	while ((element = queue->head) == NULL) {
-		pthread_cond_wait(&queue->condition, &queue->mutex);
-	}
-
-	queue->head = element->next;
-	if (element == queue->tail)
-		queue->tail = NULL;
-	pthread_mutex_unlock(&queue->mutex);
-	
-	e = element->element;
-	
-	free(element);
-	return e;
-}
-
-void* QueueDequeue(Queue queue)
+void* QueueDrain(Queue queue)
 {
-	struct _QueueElement* element = NULL;
-	void* e = NULL;
+	void* element = NULL;
+	struct _QueueElement* tail;
+	struct _QueueElement* head;
+	struct _QueueElement* next;
 	
-	pthread_mutex_lock(&queue->mutex);
-	
-	element = queue->head;
-	
-	if (element) {
-		queue->head = element->next;
-		if (element == queue->tail)
-			queue->tail = NULL;
+	while (1) { // Keep trying until Dequeue is done
+		head = queue->head; // Read Head
+		tail = queue->tail; // Read Tail
+		next = head->next;
+		if (head == queue->head) { // Are head, tail, and next consistent?
+			if (head == tail) { // Is queue empty or Tail falling behind?
+				if (next == NULL) // Is queue empty?
+					return NULL; // Queue is empty, couldn't dequeue
+				
+				// Tail is falling behind.  Try to advance it
+				__sync_bool_compare_and_swap(&queue->tail, tail, next);
+			}
+			else {
+				// Read value before CAS
+				// Otherwise, another dequeue might free the next node
+				element = next->element;
+				// Try to swing Head to the next node
+				if (__sync_bool_compare_and_swap(&queue->head, head, next))
+					break; // Dequeue is done.  Exit loop
+			}
+		}
 	}
-	
-	pthread_mutex_unlock(&queue->mutex);
-	
-	if (element) {
-		e = element->element;
-	
-		free(element);
-	}
-	
-	return e;
+	assert(next->dequeued == false);
+	next->dequeued = true;
+	free(head);
+	return element;
 }

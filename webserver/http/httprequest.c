@@ -27,6 +27,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 DEFINE_CLASS(HTTPRequest,
 	//
@@ -65,6 +66,8 @@ static void HTTPRequestParseHeaderLine(HTTPRequest request, char* line);
 static void HTTPRequestDealloc(void* ptr);
 
 bool HTTPCanParseBuffer(char* buffer) {
+	assert(buffer != NULL);
+	
 	if (strstr(buffer, kHTTPContentDelimiter))
 		return true;
 	

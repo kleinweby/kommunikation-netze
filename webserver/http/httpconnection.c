@@ -225,7 +225,7 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	HTTPResponse response = HTTPResponseCreate(connection);
 	struct stat stat;
 	char* resolvedPath;
-	
+	printf("Process %p\n", connection);
 	request = HTTPRequestCreate(connection->buffer);
 	connection->buffer = NULL;
 	
