@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <netinet/tcp.h>
+#include <unistd.h>
 
 #include "helper.h"
 
@@ -105,17 +106,19 @@ bool setTCPNoPush(int socket, bool noPush)
 
 sem_t* sem_open_anon()
 {
-	static const char* kSemTempName = "sem-temp";
+	static const char* kSemTempNameBase = "semtemp";
 	sem_t* sem;
+	char sem_name[255];
 	
-	sem = sem_open(kSemTempName, O_CREAT|O_EXCL);
+	snprintf(sem_name, 254, "%s%d", kSemTempNameBase, getpid());	
+	sem = sem_open(sem_name, O_CREAT|O_EXCL, S_IRWXU, 0);
 	
 	if (sem == SEM_FAILED) {
 		perror("sem_open");
 		return NULL;
 	}
 	
-	if (sem_unlink(kSemTempName) < 0) {
+	if (sem_unlink(sem_name) < 0) {
 		perror("WARN: sem_unlin");
 	}
 	

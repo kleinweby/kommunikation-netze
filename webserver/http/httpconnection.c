@@ -294,6 +294,15 @@ static char* HTTPResolvePath(HTTPRequest request, char* p)
 	
 	free(path);
 	
+	if (!real)
+		return NULL;
+
+	// We're no longer in the specified root
+	if (strncmp(real, kHTTPDocumentRoot, strlen(kHTTPDocumentRoot)) != 0) {
+		free(real);
+		return NULL;
+	}
+	
 	return real;
 }
 
