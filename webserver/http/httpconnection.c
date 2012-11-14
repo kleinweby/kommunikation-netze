@@ -62,6 +62,8 @@ DEFINE_CLASS(HTTPConnection,
 	
 	struct sockaddr_in6 info;
 	socklen_t infoLength;
+	// This is to identify the client (ip+port)
+	char* clientInfoLine;
 	
 	char* buffer;
 	size_t bufferFilled;
@@ -92,10 +94,11 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr_i
 	memcpy(&connection->info, &info, sizeof(struct sockaddr_in6));
 	connection->socket = socket;
 	connection->infoLength = sizeof(connection->info);
+	connection->clientInfoLine = stringFromSockaddrIn(&connection->info);
 	
 	setBlocking(connection->socket, false);
 	
-	printf("New connection:%p from %s...\n", connection, stringFromSockaddrIn(&connection->info));
+	printf("New connection:%p from %s...\n", connection, connection->clientInfoLine);
 	
 	connection->state = HTTPConnectionReadingRequest;
 
@@ -114,13 +117,14 @@ void HTTPConnectionDealloc(void* ptr)
 		free(connection->buffer);
 	}
 	
-	if (connection->socket) {
-		printf("Close connection:%p from %s...\n", connection, stringFromSockaddrIn(&connection->info));
+	if (connection->socket >= 0) {
+		printf("Close connection:%p from %s...\n", connection, connection->clientInfoLine);
 		PollUnregister(ServerGetPoll(connection->server), connection->socket);
 		close(connection->socket);
 	}
 	
-	printf("Dealloc connection:%p\n", connection);
+	printf("Dealloc connection:%p:%s\n", connection, connection->clientInfoLine);
+	free(connection->clientInfoLine);
 	free(connection);
 }
 
@@ -130,6 +134,7 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		connection->bufferFilled = 0;
 		connection->bufferLength = 255;
 		connection->buffer = malloc(connection->bufferLength);
+		memset(connection->buffer, 0, connection->bufferLength);
 	}
 	
 	assert(connection->buffer);
@@ -145,23 +150,24 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 			connection->bufferLength *= 2;
 			connection->buffer = realloc(connection->buffer, connection->bufferLength);
 			avaiableBuffer = connection->bufferLength - connection->bufferFilled;
+			memset(connection->buffer + connection->bufferFilled, 0, avaiableBuffer);
 		}
 		
 		assert(connection->buffer);
+		
+		avaiableBuffer -= 1; /* always leave a null terminator */
 		
 		readBuffer = recv(connection->socket, connection->buffer + connection->bufferFilled, avaiableBuffer, 0);
 				
 		if (readBuffer < 0) {
 			if (errno != EAGAIN) {
 				perror("recv");
-				Release(connection);
 				return;
 			}
 			readBuffer = 0;
 		}
 		else if (readBuffer == 0) {
 			printf("Client closed connection...\n");
-			Release(connection);
 			return;
 		}
 		
@@ -183,8 +189,7 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		PollRegister(ServerGetPoll(connection->server), connection->socket, 
 			POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(short revents) {
 				if ((revents & POLLHUP) > 0) {
-					close(connection->socket);
-					connection->socket = 0;
+					printf("Error reading from client...\n");
 					return;
 				}
 	
@@ -231,6 +236,7 @@ static void HTTPProcessRequest(HTTPConnection connection)
 		HTTPResponseFinish(response);
 		perror("lstat");
 		
+		free(resolvedPath);
 		Release(request);
 		Release(response);
 		return;
@@ -241,6 +247,7 @@ static void HTTPProcessRequest(HTTPConnection connection)
 		HTTPResponseFinish(response);
 		printf("not regular\n");
 		
+		free(resolvedPath);
 		Release(request);
 		Release(response);
 		return;
@@ -252,6 +259,7 @@ static void HTTPProcessRequest(HTTPConnection connection)
 		
 	HTTPSendResponse(connection, response);
 	
+	free(resolvedPath);
 	Release(request);
 	Release(response);
 }
@@ -261,7 +269,11 @@ static void HTTPSendResponse(HTTPConnection connection, HTTPResponse response)
 	if (!HTTPResponseSend(response)) {
 		PollRegister(ServerGetPoll(connection->server), connection->socket, 
 			POLLOUT|POLLHUP, 0, ServerGetOutputDispatchQueue(connection->server), ^(short revents) {
-#pragma unused(revents)
+				if ((revents & POLLHUP) > 0) {
+					printf("Error writing to client...\n");
+					return;
+				}
+				
 				HTTPSendResponse(connection, response);
 			});
 	}

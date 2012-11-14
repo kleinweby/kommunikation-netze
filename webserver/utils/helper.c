@@ -31,8 +31,10 @@
 char* stringFromSockaddrIn4(struct sockaddr_in const* sockaddr) {
 	char* buffer = malloc(100);
 		
-	if (!inet_ntop(sockaddr->sin_family, &sockaddr->sin_addr, buffer, 100))
+	if (!inet_ntop(sockaddr->sin_family, &sockaddr->sin_addr, buffer, 100)) {
+		free(buffer);
 		return NULL;
+	}
 	
 	size_t len = strlen(buffer);
 	

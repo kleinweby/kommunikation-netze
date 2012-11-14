@@ -83,7 +83,9 @@ Poll PollCreate()
 	poll->numOfSlots = 10;
 	poll->numOfPolls = 0;
 	poll->polls = malloc(sizeof(struct pollfd) * poll->numOfSlots);
+	memset(poll->polls, 0, sizeof(struct pollfd) * poll->numOfSlots);
 	poll->pollInfos = malloc(sizeof(struct _PollInfo) * poll->numOfSlots);
+	memset(poll->pollInfos, 0, sizeof(struct _PollInfo) * poll->numOfSlots);
 	poll->updateQueue = QueueCreate();
 	
 	pipe(poll->updateFDs);
@@ -214,9 +216,13 @@ static void PollApplyUpdates(Poll poll)
 	
 			// Expand
 			if (foundIndex >= poll->numOfSlots) {
+				uint32_t oldNumOfSlots = poll->numOfSlots;
 				poll->numOfSlots *= 2;
+				assert(poll->numOfSlots > 0);
 				poll->polls = realloc(poll->polls, sizeof(struct pollfd) * poll->numOfSlots);
+				memset(&poll->polls[oldNumOfSlots], 0, sizeof(struct pollfd) * (poll->numOfSlots - oldNumOfSlots));
 				poll->pollInfos = realloc(poll->pollInfos, sizeof(struct _PollInfo) * poll->numOfSlots);
+				memset(&poll->pollInfos[oldNumOfSlots], 0, sizeof(struct _PollInfo) * (poll->numOfSlots - oldNumOfSlots));
 			}
 			
 			// Now update/add

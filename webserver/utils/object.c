@@ -27,9 +27,12 @@
 #include <Block_private.h>
 #include <string.h>
 
+static const char* kObjectMagic = "OBJ ";
+static const char* kZombieObjectMagic = "ZOMB";
+
 bool ObjectRuntimeInit()
 {
-	_Block_use_RR((void (*)(const void *))Retain, (void (*)(const void *))Release);
+	_Block_use_RR((void (*)(const void *))_Retain, (void (*)(const void *))_Release);
 	
 	return true;
 }
@@ -42,17 +45,15 @@ bool ObjectInit(void* _obj, void (*Dealloc)(void* ptr))
 	
 	obj->retainCount = 1;
 	obj->Dealloc = Dealloc;
-	memcpy(obj->magic, "OBJT", 4);
+	memcpy(obj->magic, kObjectMagic, 4);
 	
 	return true;
 }
 
-void* Retain(void* _obj)
+Object _Retain(Object obj)
 {
-	if (_obj == NULL)
+	if (obj == NULL)
 		return NULL;
-	
-	Object obj = _obj;
 	
 	int rc;
 		
@@ -68,25 +69,24 @@ void* Retain(void* _obj)
 	return obj;
 }
 
-void Release(void* _obj)
+void _Release(Object obj)
 {
-	if (_obj == NULL)
+	if (obj == NULL)
 		return;
-	
-	Object obj = _obj;
-	
-	int rc;
 		
-	rc = __sync_sub_and_fetch(&obj->retainCount, 1);
+	int rc;
 	
+	assert(memcmp(obj->magic, kObjectMagic, 4) == 0);
+	
+	rc = __sync_sub_and_fetch(&obj->retainCount, 1);
+		
 	//
 	// < 0 Would mean double free
 	//
 	assert(rc >= 0);
 	
 	if (rc == 0 && obj->Dealloc) {
-		memcpy(obj->magic, "DEOB", 4);
-		
+		memcpy(obj->magic, kZombieObjectMagic, 4);
 		obj->Dealloc(obj);
 	}
 }

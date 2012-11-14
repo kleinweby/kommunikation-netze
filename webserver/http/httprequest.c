@@ -112,6 +112,7 @@ void HTTPRequestDealloc(void* ptr)
 	if (request->inputBackend)
 		free(request->inputBackend);
 	
+	Release(request->headerDictionary);
 	free(request);
 }
 

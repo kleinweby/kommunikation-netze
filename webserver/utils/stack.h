@@ -32,6 +32,7 @@ DECLARE_CLASS(Stack);
 //
 // Is a retainable
 //
+OBJECT_RETURNS_RETAINED
 Stack StackCreate();
 
 //

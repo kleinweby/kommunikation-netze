@@ -30,6 +30,7 @@
 // Creates a new http response associated with an
 // given connection
 //
+OBJECT_RETURNS_RETAINED
 HTTPResponse HTTPResponseCreate(HTTPConnection connection);
 
 //

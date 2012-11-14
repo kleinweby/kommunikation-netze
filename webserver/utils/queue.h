@@ -30,6 +30,7 @@ DECLARE_CLASS(Queue);
 //
 // Creates a new FIFO queue
 //
+OBJECT_RETURNS_RETAINED
 Queue QueueCreate();
 
 //

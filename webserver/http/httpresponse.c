@@ -139,6 +139,7 @@ void HTTPResponseDealloc(void* ptr)
 	if (response->responseFileDescriptor > 0)
 		close(response->responseFileDescriptor);
 	
+	Release(response->headerDictionary);
 	free(response);
 }
 
@@ -203,6 +204,7 @@ static bool HTTPResponseSendStatusLine(HTTPResponse response)
 	if (!HTTPResponseSendString(response, info->statusLine))
 		return false;
 
+	free(info->statusLine);
 	free(response->sendStatusExtra);
 	response->sendStatusExtra = NULL;
 	return true;
@@ -282,6 +284,7 @@ static bool HTTPResponseSendHeaders(HTTPResponse response)
 			return false;
 
 		info->status++;
+		Release(info->iter);
 		free(response->sendStatusExtra);
 		response->sendStatusExtra = NULL;
 	}
@@ -318,6 +321,9 @@ static bool HTTPResponseSendBody(HTTPResponse response)
 		if (!HTTPConnectionSendFD(response->connection, response->responseFileDescriptor, &info->fileOffset, info->fileSize - (size_t)info->fileOffset))
 			return false;
 	}
+	
+	free(info);
+	response->sendStatusExtra = NULL;
 
 	return true;
 }
