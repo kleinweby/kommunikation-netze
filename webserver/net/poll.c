@@ -215,8 +215,10 @@ static void PollApplyUpdates(Poll poll)
 			// Expand
 			if (foundIndex >= poll->numOfSlots) {
 				poll->numOfSlots *= 2;
-				poll->polls = realloc(poll->polls, sizeof(struct pollfd) * poll->numOfSlots);
-				poll->pollInfos = realloc(poll->pollInfos, sizeof(struct _PollInfo) * poll->numOfSlots);
+				size_t newSize = sizeof(struct pollfd) * poll->numOfSlots;
+				assert(newSize > 0);
+				poll->polls = realloc(poll->polls, newSize);
+				poll->pollInfos = realloc(poll->pollInfos, newSize);
 			}
 			
 			// Now update/add

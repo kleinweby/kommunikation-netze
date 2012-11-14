@@ -88,6 +88,7 @@ WebServer WebServerCreate(char* port)
 	CreateServers(webServer, port);
 	
 	if (webServer->numberOfServers == 0) {
+		Release(webServer);
 		printf("Could not listen on any socket.\n");
 		return NULL;
 	}
@@ -120,6 +121,7 @@ static bool CreateServers(WebServer webServer, char* port)
 	
 	error = getaddrinfo(NULL, port, &hints, &result);
 	if (error != 0) {
+		free(servers);
 		printf("Error: %s", gai_strerror(error));
 		return false;
 	}
