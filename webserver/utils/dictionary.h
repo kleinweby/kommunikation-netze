@@ -53,6 +53,7 @@ void DictionarySet(Dictionary dict, const char* key, const void* value);
 // Gets a iterator. The order which will be iterated
 // is implemation detail.
 //
+OBJECT_RETURNS_RETAINED
 DictionaryIterator DictionaryGetIterator(Dictionary dict);
 
 //

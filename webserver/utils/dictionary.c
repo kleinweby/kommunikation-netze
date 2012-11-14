@@ -36,7 +36,9 @@ DEFINE_CLASS(DictionaryEntry,
 	DictionaryEntry rightEntry;
 );
 
+OBJECT_RETURNS_RETAINED
 static DictionaryEntry DictionaryEntryCreate(const char* key, const char* value);
+
 static void DictionaryEntrySetLeftEntry(DictionaryEntry entry, DictionaryEntry left);
 static void DictionaryEntrySetRightEntry(DictionaryEntry entry, DictionaryEntry right);
 static void DictionaryEntryDealloc(void* ptr);
