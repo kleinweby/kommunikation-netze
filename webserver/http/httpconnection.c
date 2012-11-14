@@ -137,7 +137,7 @@ void HTTPConnectionDealloc(void* ptr)
 		free(connection->buffer);
 	}
 	
-	if (connection->socket) {
+	if (connection->socket >= 0) {
 		printf("Close connection:%p from %s...\n", connection, connection->clientInfoLine);
 		PollUnregister(ServerGetPoll(connection->server), connection->socket);
 		close(connection->socket);

@@ -25,6 +25,10 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <Block_private.h>
+#include <string.h>
+
+static const char* kObjectMagic = "OBJ ";
+static const char* kZombieObjectMagic = "ZOMB";
 
 bool ObjectRuntimeInit()
 {
@@ -41,6 +45,7 @@ bool ObjectInit(void* _obj, void (*Dealloc)(void* ptr))
 	
 	obj->retainCount = 1;
 	obj->Dealloc = Dealloc;
+	memcpy(obj->magic, kObjectMagic, 4);
 	
 	return true;
 }
@@ -74,15 +79,18 @@ void Release(void* _obj)
 	Object obj = _obj;
 	
 	int rc;
-		
-	rc = __sync_sub_and_fetch(&obj->retainCount, 1);
 	
+	assert(memcmp(obj->magic, kObjectMagic, 4) == 0);
+	
+	rc = __sync_sub_and_fetch(&obj->retainCount, 1);
+		
 	//
 	// < 0 Would mean double free
 	//
 	assert(rc >= 0);
 	
 	if (rc == 0 && obj->Dealloc) {
+		memcpy(obj->magic, kZombieObjectMagic, 4);
 		obj->Dealloc(obj);
 	}
 }
