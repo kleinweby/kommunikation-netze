@@ -182,14 +182,12 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		if (readBuffer < 0) {
 			if (errno != EAGAIN) {
 				perror("recv");
-				Release(connection);
 				return;
 			}
 			readBuffer = 0;
 		}
 		else if (readBuffer == 0) {
 			printf("Client closed connection...\n");
-			Release(connection);
 			return;
 		}
 		

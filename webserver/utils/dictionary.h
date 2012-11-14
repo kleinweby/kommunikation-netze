@@ -33,6 +33,7 @@ DECLARE_CLASS(DictionaryIterator);
 //
 // Creates a new empty dictionary;
 //
+OBJECT_RETURNS_RETAINED
 Dictionary DictionaryCreate();
 
 //

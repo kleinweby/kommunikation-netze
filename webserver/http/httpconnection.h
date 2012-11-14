@@ -34,6 +34,7 @@
 //
 // Creates and accepts a new http connection
 //
+OBJECT_RETURNS_RETAINED
 HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr_in6 info);
 
 //

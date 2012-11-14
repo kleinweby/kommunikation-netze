@@ -41,6 +41,7 @@ typedef enum {
 //
 // Is a Retainable
 //
+OBJECT_RETURNS_RETAINED
 Poll PollCreate();
 
 //

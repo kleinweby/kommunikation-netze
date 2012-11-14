@@ -63,6 +63,24 @@ struct _##A {\
 }
 
 //
+// Some helper methods to declare ownership, so
+// that it can be automaticly tested.
+//
+
+//
+// Attributes an function that returns an object
+// with rc +1
+//
+// Object creation methods should have this
+//
+#define OBJECT_RETURNS_RETAINED __attribute__((ns_returns_retained))
+
+//
+// Attributes an function that returns an object with rc -1
+//
+#define OBJECT_CONSUME __attribute__((ns_consumed))
+
+//
 // Declares a gerneral object class
 //
 DECLARE_CLASS(Object);
@@ -85,11 +103,19 @@ bool ObjectInit(void* object, void (*Dealloc)(void* ptr));
 //
 // Note: this will crash when the retain count is < 1
 //
-void* Retain(void* object);
+OBJECT_RETURNS_RETAINED
+Object _Retain(Object object);
 
 //
 // Releases the reference to this object.
 //
-void Release(void* object);
+void _Release(Object OBJECT_CONSUME object);
+
+//
+// Typecorrect retain and release
+//
+
+#define Retain(...) ((__typeof(__VA_ARGS__)) _Retain((void*)(__VA_ARGS__)))
+#define Release(...) _Release((void *)(__VA_ARGS__))
 
 #endif

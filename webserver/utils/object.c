@@ -32,7 +32,7 @@ static const char* kZombieObjectMagic = "ZOMB";
 
 bool ObjectRuntimeInit()
 {
-	_Block_use_RR((void (*)(const void *))Retain, (void (*)(const void *))Release);
+	_Block_use_RR((void (*)(const void *))_Retain, (void (*)(const void *))_Release);
 	
 	return true;
 }
@@ -50,12 +50,10 @@ bool ObjectInit(void* _obj, void (*Dealloc)(void* ptr))
 	return true;
 }
 
-void* Retain(void* _obj)
+Object _Retain(Object obj)
 {
-	if (_obj == NULL)
+	if (obj == NULL)
 		return NULL;
-	
-	Object obj = _obj;
 	
 	int rc;
 		
@@ -71,13 +69,11 @@ void* Retain(void* _obj)
 	return obj;
 }
 
-void Release(void* _obj)
+void _Release(Object obj)
 {
-	if (_obj == NULL)
+	if (obj == NULL)
 		return;
-	
-	Object obj = _obj;
-	
+		
 	int rc;
 	
 	assert(memcmp(obj->magic, kObjectMagic, 4) == 0);

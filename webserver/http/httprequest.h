@@ -37,6 +37,7 @@ bool HTTPCanParseBuffer(char* buffer);
 //
 // Creates an http request with a given buffer.
 //
+OBJECT_RETURNS_RETAINED
 HTTPRequest HTTPRequestCreate(char* buffer);
 
 //
