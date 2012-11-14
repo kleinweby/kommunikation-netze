@@ -62,6 +62,8 @@ DEFINE_CLASS(HTTPConnection,
 	
 	struct sockaddr_in6 info;
 	socklen_t infoLength;
+	// This is to identify the client (ip+port)
+	char* clientInfoLine;
 	
 	char* buffer;
 	size_t bufferFilled;
@@ -92,10 +94,11 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr_i
 	memcpy(&connection->info, &info, sizeof(struct sockaddr_in6));
 	connection->socket = socket;
 	connection->infoLength = sizeof(connection->info);
+	connection->clientInfoLine = stringFromSockaddrIn(&connection->info);
 	
 	setBlocking(connection->socket, false);
 	
-	printf("New connection:%p from %s...\n", connection, stringFromSockaddrIn(&connection->info));
+	printf("New connection:%p from %s...\n", connection, connection->clientInfoLine);
 	
 	connection->state = HTTPConnectionReadingRequest;
 
@@ -135,12 +138,13 @@ void HTTPConnectionDealloc(void* ptr)
 	}
 	
 	if (connection->socket) {
-		printf("Close connection:%p from %s...\n", connection, stringFromSockaddrIn(&connection->info));
+		printf("Close connection:%p from %s...\n", connection, connection->clientInfoLine);
 		PollUnregister(ServerGetPoll(connection->server), connection->socket);
 		close(connection->socket);
 	}
 	
-	printf("Dealloc connection:%p\n", connection);
+	printf("Dealloc connection:%p:%s\n", connection, connection->clientInfoLine);
+	free(connection->clientInfoLine);
 	free(connection);
 }
 
@@ -208,7 +212,6 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 			POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(short revents) {
 				if ((revents & POLLHUP) > 0) {
 					printf("Error reading from client...\n");
-					Release(connection);
 					return;
 				}
 	
@@ -255,6 +258,7 @@ static void HTTPProcessRequest(HTTPConnection connection)
 		HTTPResponseFinish(response);
 		perror("lstat");
 		
+		free(resolvedPath);
 		Release(request);
 		Release(response);
 		return;
@@ -265,6 +269,7 @@ static void HTTPProcessRequest(HTTPConnection connection)
 		HTTPResponseFinish(response);
 		printf("not regular\n");
 		
+		free(resolvedPath);
 		Release(request);
 		Release(response);
 		return;
@@ -277,6 +282,7 @@ static void HTTPProcessRequest(HTTPConnection connection)
 		
 	HTTPSendResponse(connection, response);
 	
+	free(resolvedPath);
 	Release(request);
 	Release(response);
 }
@@ -286,7 +292,11 @@ static void HTTPSendResponse(HTTPConnection connection, HTTPResponse response)
 	if (!HTTPResponseSend(response)) {
 		PollRegister(ServerGetPoll(connection->server), connection->socket, 
 			POLLOUT|POLLHUP, 0, ServerGetOutputDispatchQueue(connection->server), ^(short revents) {
-#pragma unused(revents)
+				if ((revents & POLLHUP) > 0) {
+					printf("Error writing to client...\n");
+					return;
+				}
+				
 				HTTPSendResponse(connection, response);
 			});
 	}

@@ -181,7 +181,11 @@ static Server CreateServer(WebServer webServer, struct addrinfo *serverInfo)
 		return NULL;
 	}
 	
-	printf("Listen on %s...\n", stringFromSockaddrIn(&server->info));
+	{
+		char *s = stringFromSockaddrIn(&server->info);
+		printf("Listen on %s...\n", s);
+		free(s);
+	}
 	listen(server->socket, 300);
 		
 	PollRegister(server->webServer->poll, server->socket, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
