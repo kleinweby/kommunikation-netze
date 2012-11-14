@@ -99,7 +99,9 @@ void DictionarySet(Dictionary dict, const char* key, const void* value)
 			if (entry->leftEntry)
 				entry = entry->leftEntry;
 			else {
-				DictionaryEntrySetLeftEntry(entry, DictionaryEntryCreate(key, value));
+				DictionaryEntry e = DictionaryEntryCreate(key, value);
+				DictionaryEntrySetLeftEntry(entry, e);
+				Release(e);
 				return;
 			}
 		}
@@ -107,7 +109,9 @@ void DictionarySet(Dictionary dict, const char* key, const void* value)
 			if (entry->rightEntry)
 				entry = entry->rightEntry;
 			else {
-				DictionaryEntrySetRightEntry(entry, DictionaryEntryCreate(key, value));
+				DictionaryEntry e = DictionaryEntryCreate(key, value);
+				DictionaryEntrySetRightEntry(entry, e);
+				Release(e);
 				return;
 			}
 		}
