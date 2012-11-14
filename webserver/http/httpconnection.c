@@ -217,10 +217,11 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	// We only support get for now
 	if (HTTPRequestGetMethod(request) != kHTTPMethodGet) {
 		HTTPResponseSetStatusCode(response, kHTTPErrorNotImplemented);
-		HTTPSendResponse(connection, response);
+		HTTPResponseSetResponseString(response, "404/Not Implemented");
 		
 		HTTPResponseFinish(response);
 		
+		HTTPSendResponse(connection, response);
 		Release(request);
 		Release(response);
 		return;
@@ -233,9 +234,11 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	// Check the file
 	if (lstat(resolvedPath, &stat) < 0) {
 		HTTPResponseSetStatusCode(response, kHTTPBadNotFound);
+		HTTPResponseSetResponseString(response, "404/Not Found");
 		HTTPResponseFinish(response);
 		perror("lstat");
 		
+		HTTPSendResponse(connection, response);
 		free(resolvedPath);
 		Release(request);
 		Release(response);
@@ -244,6 +247,7 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	
 	if (!S_ISREG(stat.st_mode)) {
 		HTTPResponseSetStatusCode(response, kHTTPBadNotFound);
+		HTTPResponseSetResponseString(response, "404/Not Found");
 		HTTPResponseFinish(response);
 		printf("not regular\n");
 		
