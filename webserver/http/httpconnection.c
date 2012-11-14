@@ -171,7 +171,9 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		
 		assert(connection->buffer);
 		
-		readBuffer = recv(connection->socket, connection->buffer + connection->bufferFilled, avaiableBuffer - 1 /* always leave a null terminator */, 0);
+		avaiableBuffer -= 1; /* always leave a null terminator */
+		
+		readBuffer = recv(connection->socket, connection->buffer + connection->bufferFilled, avaiableBuffer, 0);
 				
 		if (readBuffer < 0) {
 			if (errno != EAGAIN) {
@@ -205,8 +207,8 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		PollRegister(ServerGetPoll(connection->server), connection->socket, 
 			POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(short revents) {
 				if ((revents & POLLHUP) > 0) {
-					close(connection->socket);
-					connection->socket = 0;
+					printf("Error reading from client...\n");
+					Release(connection);
 					return;
 				}
 	
