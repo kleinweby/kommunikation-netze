@@ -195,7 +195,7 @@ static void PollApplyUpdates(Poll poll)
 		read(poll->updateFDs[0], buffer, 255);
 	}
 	
-	while ((update = QueueDequeue(poll->updateQueue)) != NULL) {
+	while ((update = QueueDrain(poll->updateQueue)) != NULL) {
 		// Add/Update
 		if (update->pollInfo.block) {
 			uint32_t foundIndex = UINT32_MAX;

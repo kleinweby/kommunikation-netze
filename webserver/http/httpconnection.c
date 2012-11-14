@@ -101,26 +101,6 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr_i
 
 	// For the block
 	HTTPConnectionReadRequest(connection);
-	// Retain(connection);
-	// 	PollRegister(ServerGetPoll(connection->server), connection->socket, 
-	// 		POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(short revents) {
-	// 			if ((revents & POLLHUP) > 0) {
-	// 				close(connection->socket);
-	// 				connection->socket = 0;
-	// 				Release(connection);
-	// 				return;
-	// 			}
-	// 	
-	// 			switch(connection->state) {
-	// 			case HTTPConnectionReadingRequest:
-	// 				HTTPConnectionReadRequest(connection);
-	// 				break;
-	// 			case HTTPConnectionProcessingRequest:
-	// 				break;
-	// 			}
-	// 			Release(connection);
-	// 		});
-	
 	
 	// No release
 	return connection;
@@ -267,7 +247,6 @@ static void HTTPProcessRequest(HTTPConnection connection)
 	}
 	
 	HTTPResponseSetStatusCode(response, kHTTPOK);
-	//HTTPResponseSetResponseString(response, "Hallo wie geht's?");
 	HTTPResponseSetResponseFileDescriptor(response, open(resolvedPath, O_RDONLY));
 	HTTPResponseFinish(response);
 		
