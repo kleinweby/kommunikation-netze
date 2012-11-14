@@ -139,6 +139,7 @@ void HTTPResponseDealloc(void* ptr)
 	if (response->responseFileDescriptor > 0)
 		close(response->responseFileDescriptor);
 	
+	Release(response->headerDictionary);
 	free(response);
 }
 

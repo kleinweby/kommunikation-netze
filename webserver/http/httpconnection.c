@@ -150,6 +150,7 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		connection->bufferFilled = 0;
 		connection->bufferLength = 255;
 		connection->buffer = malloc(connection->bufferLength);
+		memset(connection->buffer, 0, connection->bufferLength);
 	}
 	
 	assert(connection->buffer);
@@ -165,11 +166,12 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 			connection->bufferLength *= 2;
 			connection->buffer = realloc(connection->buffer, connection->bufferLength);
 			avaiableBuffer = connection->bufferLength - connection->bufferFilled;
+			memset(connection->buffer + connection->bufferFilled, 0, avaiableBuffer);
 		}
 		
 		assert(connection->buffer);
 		
-		readBuffer = recv(connection->socket, connection->buffer + connection->bufferFilled, avaiableBuffer, 0);
+		readBuffer = recv(connection->socket, connection->buffer + connection->bufferFilled, avaiableBuffer - 1 /* always leave a null terminator */, 0);
 				
 		if (readBuffer < 0) {
 			if (errno != EAGAIN) {
