@@ -25,6 +25,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <assert.h>
+#include <stdio.h>
 
 DEFINE_CLASS(Stack,	
 	void** stack;
@@ -38,12 +40,23 @@ Stack StackCreate()
 {
 	Stack stack = malloc(sizeof(struct _Stack));
 	
+	if (stack == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+	
 	memset(stack, 0, sizeof(struct _Stack));
 	ObjectInit(stack, StackDealloc);
 	
 	stack->uppermostObject = -1;
 	stack->slots = 2;
 	stack->stack = malloc(sizeof(void*) * stack->slots);
+	
+	if (stack->stack == NULL) {
+		perror("malloc");
+		Release(stack);
+		return NULL;
+	}
 	
 	return stack;
 }
@@ -54,6 +67,7 @@ void StackPush(Stack stack, void* object)
 	if (stack->uppermostObject == (int32_t)stack->slots) {
 		stack->slots *= 2;
 		stack->stack = realloc(stack->stack, sizeof(void*) * stack->slots);
+		assert(stack->stack != NULL);
 	}
 	
 	stack->stack[++stack->uppermostObject] = object;
@@ -71,6 +85,7 @@ static void StackDealloc(void* ptr)
 {
 	Stack stack = ptr;
 	
-	free(stack->stack);
+	if (stack->stack)
+		free(stack->stack);
 	free(stack);
 }

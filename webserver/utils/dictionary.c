@@ -25,6 +25,8 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
 
 DECLARE_CLASS(DictionaryEntry);
 
@@ -61,9 +63,20 @@ Dictionary DictionaryCreate()
 {
 	Dictionary dict = malloc(sizeof(struct _Dictionary));
 	
+	if (dict == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+	
 	ObjectInit(dict, DictionaryDealloc);
 	
 	dict->headEntry = DictionaryEntryCreate("", NULL);
+	
+	if (dict->headEntry == NULL) {
+		printf("Could not create head entry.");
+		Release(dict);
+		return NULL;
+	}
 	
 	return dict;
 }
@@ -132,6 +145,11 @@ static DictionaryEntry DictionaryEntryCreate(const char* key, const char* value)
 {
 	DictionaryEntry entry = malloc(sizeof(struct _DictionaryEntry));
 	
+	if (entry == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+	
 	memset(entry, 0, sizeof(struct _DictionaryEntry));
 	
 	ObjectInit(entry, DictionaryEntryDealloc);
@@ -165,12 +183,25 @@ static void DictionaryEntryDealloc(void* ptr)
 
 DictionaryIterator DictionaryGetIterator(Dictionary dict)
 {
+	assert(dict != NULL);
 	DictionaryIterator iter = malloc(sizeof(struct _DictionaryIterator));
+	
+	if (iter == NULL) {
+		perror("malloc");
+		return NULL;
+	}
 	
 	memset(iter, 0, sizeof(struct _DictionaryIterator));
 	ObjectInit(iter, DictionaryIteratorDealloc);
 	
 	iter->stack = StackCreate();
+	
+	if (iter->stack == NULL) {
+		printf("Could not create stack.\n");
+		Release(iter);
+		return NULL;
+	}
+	
 	iter->dictionary = Retain(dict);
 	
 	// Push the head dummy entry

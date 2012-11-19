@@ -51,11 +51,23 @@ DEFINE_CLASS(Queue,
 Queue QueueCreate() {
 	Queue queue = malloc(sizeof(struct _Queue));
 	
+	if (queue == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+	
 	memset(queue, 0, sizeof(struct _Queue));
 	
 	ObjectInit(queue, (void (*)(void *))QueueDestroy);
 	
 	struct _QueueElement* node = malloc(sizeof(struct _QueueElement));
+	
+	if (node == NULL) {
+		perror("malloc");
+		Release(queue);
+		return NULL;
+	}
+	
 	memset(node, 0, sizeof(struct _QueueElement));
 	
 	queue->head = node;
@@ -79,6 +91,11 @@ void QueueEnqueue(Queue queue, void* e) {
 	struct _QueueElement* node = malloc(sizeof(struct _QueueElement));
 	struct _QueueElement* tail;
 	struct _QueueElement* next;
+	
+	if (node == NULL) {
+		perror("malloc");
+		return;
+	}
 	
 	memset(node, 0, sizeof(struct _QueueElement));
 	

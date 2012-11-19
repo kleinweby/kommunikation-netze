@@ -76,6 +76,11 @@ Poll PollCreate()
 {
 	Poll poll = malloc(sizeof(struct _Poll));
 	
+	if (poll == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+	
 	memset(poll, 0, sizeof(struct _Poll));
 	
 	ObjectInit(poll, PollDealloc);
@@ -83,12 +88,37 @@ Poll PollCreate()
 	poll->numOfSlots = 10;
 	poll->numOfPolls = 0;
 	poll->polls = malloc(sizeof(struct pollfd) * poll->numOfSlots);
-	memset(poll->polls, 0, sizeof(struct pollfd) * poll->numOfSlots);
-	poll->pollInfos = malloc(sizeof(struct _PollInfo) * poll->numOfSlots);
-	memset(poll->pollInfos, 0, sizeof(struct _PollInfo) * poll->numOfSlots);
-	poll->updateQueue = QueueCreate();
 	
-	pipe(poll->updateFDs);
+	if (poll->polls == NULL) {
+		perror("malloc");
+		Release(poll);
+		return NULL;
+	}
+	
+	memset(poll->polls, 0, sizeof(struct pollfd) * poll->numOfSlots);
+	
+	poll->pollInfos = malloc(sizeof(struct _PollInfo) * poll->numOfSlots);
+	
+	if (poll->pollInfos == NULL) {
+		perror("malloc");
+		Release(poll);
+		return NULL;
+	}
+	
+	memset(poll->pollInfos, 0, sizeof(struct _PollInfo) * poll->numOfSlots);
+	
+	poll->updateQueue = QueueCreate();
+	if (poll->updateQueue == NULL) {
+		printf("Could not create poll update queue...\n");
+		Release(poll);
+		return NULL;
+	}
+	
+	if (pipe(poll->updateFDs) < 0) {
+		perror("pipe");
+		Release(poll);
+		return NULL;
+	}
 	
 	setBlocking(poll->updateFDs[0], false);
 	setBlocking(poll->updateFDs[1], false);
@@ -106,6 +136,11 @@ void PollRegister(Poll poll, int fd, short events, PollFlags flags, DispatchQueu
 {
 	struct _PollUpdate* update = malloc(sizeof(struct _PollUpdate));
 	
+	if (update == NULL) {
+		perror("malloc");
+		return;
+	}
+	
 	memset(update, 0, sizeof(struct _PollUpdate));
 	
 	update->poll.fd = fd;
@@ -118,6 +153,7 @@ void PollRegister(Poll poll, int fd, short events, PollFlags flags, DispatchQueu
 	QueueEnqueue(poll->updateQueue, update);
 	
 	// Notify to reload the poll descritors
+	// Not interested in write errors here
 	int i = 1;
 	write(poll->updateFDs[1], &i, 1);
 }
@@ -126,6 +162,11 @@ void PollUnregister(Poll poll, int fd)
 {
 	struct _PollUpdate* update = malloc(sizeof(struct _PollUpdate));
 	
+	if (update == NULL) {
+		perror("malloc");
+		return;
+	}
+	
 	memset(update, 0, sizeof(struct _PollUpdate));
 	
 	update->poll.fd = fd;
@@ -133,6 +174,7 @@ void PollUnregister(Poll poll, int fd)
 	QueueEnqueue(poll->updateQueue, update);
 	
 	// Notify to reload the poll descritors
+	// Not interested in write errors here
 	int i = 1;
 	write(poll->updateFDs[1], &i, 1);
 }
@@ -142,15 +184,20 @@ static void* PollThread(void* ptr)
 	Poll p = ptr;
 	int socksToHandle;
 	
+	// Listen on the update notifing pipe
+	// this way, we can quickly react to changed poll desriptors
+	// when we would normally hang in the poll timeout
 	PollRegister(p, p->updateFDs[0], POLLIN, kPollRepeatFlag, NULL, ^(short revents){
 #pragma unused(revents)
 	});
 	
 	for (;;) {
+		// Update the poll before to ensure we get all
 		PollApplyUpdates(p);
 		
 		socksToHandle = poll(p->polls, p->numOfPolls, 1000);
 		
+		// Update after to not notify deleted poll requests
 		PollApplyUpdates(p);
 		
 		if (socksToHandle < 0) {
@@ -166,14 +213,14 @@ static void* PollThread(void* ptr)
 					// We need to enqueue the update before to let the block
 					// reregister itself
 					if ((p->pollInfos[i].flags & kPollRepeatFlag) == 0) {
-						assert(p->updateFDs[0] != p->polls[i].fd);
+						assert(p->updateFDs[0] != p->polls[i].fd); // Sanity: never remove update fd
 						PollUnregister(p, p->polls[i].fd);
 					}
 					
 					// If we have a queue use this
 					if (p->pollInfos[i].queue) {
 						short revents = p->polls[i].revents;
-						void (^block)(short revents) = p->pollInfos[i].block;
+						void (^block)(short revents) = p->pollInfos[i].block; // Get a reference to properly retain the block
 						Dispatch(p->pollInfos[i].queue, ^{
 							block(revents);
 						});
@@ -192,6 +239,7 @@ static void PollApplyUpdates(Poll poll)
 {
 	struct _PollUpdate *update;
 	
+	// Just read away all the notify-bytes that piled up
 	{
 		char buffer[255];
 		read(poll->updateFDs[0], buffer, 255);
@@ -220,8 +268,10 @@ static void PollApplyUpdates(Poll poll)
 				poll->numOfSlots *= 2;
 				assert(poll->numOfSlots > 0);
 				poll->polls = realloc(poll->polls, sizeof(struct pollfd) * poll->numOfSlots);
+				assert(poll->polls);
 				memset(&poll->polls[oldNumOfSlots], 0, sizeof(struct pollfd) * (poll->numOfSlots - oldNumOfSlots));
 				poll->pollInfos = realloc(poll->pollInfos, sizeof(struct _PollInfo) * poll->numOfSlots);
+				assert(poll->pollInfos);
 				memset(&poll->pollInfos[oldNumOfSlots], 0, sizeof(struct _PollInfo) * (poll->numOfSlots - oldNumOfSlots));
 			}
 			
@@ -271,5 +321,17 @@ static void PollApplyUpdates(Poll poll)
 
 static void PollDealloc(void* ptr)
 {
-#pragma unused(ptr)
+	Poll poll = ptr;
+
+	Release(poll->updateQueue);
+	close(poll->updateFDs[0]);
+	close(poll->updateFDs[1]);
+	
+	if (poll->polls)
+		free(poll->polls);
+	
+	if (poll->pollInfos)
+		free(poll->pollInfos);
+	
+	free(poll);
 }

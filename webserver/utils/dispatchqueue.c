@@ -50,6 +50,11 @@ DispatchQueue DispatchQueueCreate(DispatchQueueFlags flags)
 {
 	DispatchQueue queue = malloc(sizeof(struct _DispatchQueue));
 	
+	if (queue == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+	
 	memset(queue, 0, sizeof(struct _DispatchQueue));
 	
 	ObjectInit(queue, _DisptachQueueDealloc);
@@ -64,9 +69,21 @@ DispatchQueue DispatchQueueCreate(DispatchQueueFlags flags)
 	
 	queue->queue = QueueCreate();
 	
+	if (queue->queue == NULL) {
+		printf("Could not create queue.\n");
+		Release(queue);
+		return NULL;
+	}
+	
 	queue->maxThreads = (flags & kDispatchQueueSerial) ? 1 : 10;
 	
 	queue->threads = malloc(sizeof(pthread_t) * queue->maxThreads);
+	
+	if (queue->threads == NULL) {
+		perror("malloc");
+		Release(queue);
+		return NULL;
+	}
 	
 	// Start our threads
 	for (uint32_t i = 0; i < queue->maxThreads; i++) {
@@ -126,6 +143,7 @@ static void _DisptachQueueDealloc(void* ptr)
 	
 	// Now we can release the data
 	Release(queue->queue);
-	free(queue->threads);
+	if (queue->threads)
+		free(queue->threads);
 	free(queue);
 }

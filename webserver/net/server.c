@@ -78,12 +78,41 @@ WebServer WebServerCreate(char* port)
 	WebServer webServer = malloc(sizeof(struct _WebServer));
 		
 	webServer->ioQueue = DispatchQueueCreate(0);
+	
+	if (webServer->ioQueue == NULL) {
+		Release(webServer);
+		printf("Could not create io queue.\n");
+		return NULL;
+	}
+	
 	webServer->processingQueue = DispatchQueueCreate(0);
+	
+	if (webServer->processingQueue == NULL) {
+		Release(webServer);
+		printf("Could not create processing queue.\n");
+		return NULL;
+	}
+	
 	webServer->numberOfServers = 0;
 	webServer->poll = PollCreate();
 	
-	signal(SIGPIPE, SIG_IGN);
-	CreateServers(webServer, port);
+	if (webServer->poll == NULL) {
+		Release(webServer);
+		printf("Could not create poll.\n");
+		return NULL;
+	}
+	
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+		perror("signal");
+		Release(webServer);
+		return NULL;
+	}
+	
+	if (!CreateServers(webServer, port)) {
+		Release(webServer);
+		printf("Could not create servers\n");
+		return NULL;
+	}
 	
 	if (webServer->numberOfServers == 0) {
 		Release(webServer);
@@ -150,6 +179,11 @@ static Server CreateServer(WebServer webServer, struct addrinfo *serverInfo)
 {
 	Server server = malloc(sizeof(struct _Server));
 	
+	if (server == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+	
 	server->webServer = webServer;
 	server->socket = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
 		
@@ -184,17 +218,25 @@ static Server CreateServer(WebServer webServer, struct addrinfo *serverInfo)
 		printf("Listen on %s...\n", s);
 		free(s);
 	}
-	listen(server->socket, 300);
+	listen(server->socket, 10);
 		
 	PollRegister(server->webServer->poll, server->socket, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
-#pragma unused(revents)
-		struct sockaddr_in6 info;
-		socklen_t infoSize = sizeof(info);
-		int socket = accept(server->socket, (struct sockaddr*)&info, &infoSize);
-		setTCPNoPush(socket, true);
-		if (socket) {
-			HTTPConnection connection = HTTPConnectionCreate(server, socket, info);
-			Release(connection);
+		if ((revents & POLLHUP) > 0) {
+			printf("Error in server socket?!\n");
+			return;
+		}
+		else {
+			struct sockaddr_in6 info;
+			socklen_t infoSize = sizeof(info);
+			int socket = accept(server->socket, (struct sockaddr*)&info, &infoSize);
+			
+			setTCPNoPush(socket, true);
+			
+			if (socket) {
+				HTTPConnection connection = HTTPConnectionCreate(server, socket, info);
+				// We don't manage connections yet, so just release it here
+				Release(connection);
+			}
 		}
 	});
 	

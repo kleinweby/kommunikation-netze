@@ -42,24 +42,18 @@
 #include <sys/sendfile.h>
 #endif
 
+// TODO: Not really nice
 #ifdef DARWIN
 const char* kHTTPDocumentRoot = "/Users/christian/Public/";
 #else
 const char* kHTTPDocumentRoot = "/home/speich/htdocs";
 #endif
 
-typedef enum {
-	HTTPConnectionReadingRequest,
-	HTTPConnectionProcessingRequest
-} HTTPConnectionState;
-
 DEFINE_CLASS(HTTPConnection,
 	int socket;
 	
 	Server server;
-	
-	HTTPConnectionState state;
-	
+		
 	struct sockaddr_in6 info;
 	socklen_t infoLength;
 	// This is to identify the client (ip+port)
@@ -86,6 +80,11 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr_i
 	
 	HTTPConnection connection = malloc(sizeof(struct _HTTPConnection));
 	
+	if (connection == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+	
 	memset(connection, 0, sizeof(struct _HTTPConnection));
 	
 	ObjectInit(connection, HTTPConnectionDealloc);
@@ -100,9 +99,7 @@ HTTPConnection HTTPConnectionCreate(Server server, int socket, struct sockaddr_i
 	
 	printf("New connection:%p from %s...\n", connection, connection->clientInfoLine);
 	
-	connection->state = HTTPConnectionReadingRequest;
-
-	// For the block
+	// Try reading
 	HTTPConnectionReadRequest(connection);
 	
 	// No release
@@ -124,7 +121,9 @@ void HTTPConnectionDealloc(void* ptr)
 	}
 	
 	printf("Dealloc connection:%p:%s\n", connection, connection->clientInfoLine);
-	free(connection->clientInfoLine);
+	if (connection->clientInfoLine)
+		free(connection->clientInfoLine);
+	
 	free(connection);
 }
 
@@ -134,11 +133,13 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		connection->bufferFilled = 0;
 		connection->bufferLength = 255;
 		connection->buffer = malloc(connection->bufferLength);
+		if (connection->buffer == NULL) {
+			perror("malloc");
+			return; // Will in turn release close & connection
+		}
 		memset(connection->buffer, 0, connection->bufferLength);
 	}
-	
-	assert(connection->buffer);
-	
+		
 	size_t avaiableBuffer;
 	ssize_t readBuffer;
 	do {
@@ -149,12 +150,16 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 		if (avaiableBuffer < 10) {
 			connection->bufferLength *= 2;
 			connection->buffer = realloc(connection->buffer, connection->bufferLength);
+			
+			if (connection->buffer == NULL) {
+				perror("realloc");
+				return; // Will in turn release close & connection
+			}
+			
 			avaiableBuffer = connection->bufferLength - connection->bufferFilled;
 			memset(connection->buffer + connection->bufferFilled, 0, avaiableBuffer);
 		}
-		
-		assert(connection->buffer);
-		
+				
 		avaiableBuffer -= 1; /* always leave a null terminator */
 		
 		readBuffer = recv(connection->socket, connection->buffer + connection->bufferFilled, avaiableBuffer, 0);
@@ -177,29 +182,20 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 	} while ((size_t)readBuffer == avaiableBuffer);
 	
 	if (HTTPCanParseBuffer(connection->buffer)) {
-		connection->state = HTTPConnectionProcessingRequest;
 		
-		// For the block
 		Dispatch(ServerGetProcessingDispatchQueue(connection->server), ^{
 			HTTPProcessRequest(connection);
 		});
 	}
 	else {
-		// For the block
 		PollRegister(ServerGetPoll(connection->server), connection->socket, 
 			POLLIN|POLLHUP, 0, ServerGetInputDispatchQueue(connection->server), ^(short revents) {
 				if ((revents & POLLHUP) > 0) {
 					printf("Error reading from client...\n");
 					return;
 				}
-	
-				switch(connection->state) {
-				case HTTPConnectionReadingRequest:
-					HTTPConnectionReadRequest(connection);
-					break;
-				case HTTPConnectionProcessingRequest:
-					break;
-				}
+
+				HTTPConnectionReadRequest(connection);
 			});
 	}
 }
@@ -207,11 +203,26 @@ static void HTTPConnectionReadRequest(HTTPConnection connection)
 static void HTTPProcessRequest(HTTPConnection connection)
 {	
 	HTTPRequest request;
-	HTTPResponse response = HTTPResponseCreate(connection);
+	HTTPResponse response;
 	struct stat stat;
 	char* resolvedPath;
 	printf("Process %p\n", connection);
+	
+	response = HTTPResponseCreate(connection);
+	
+	if (response == NULL) {
+		printf("Could not create response object.\n");
+		return;
+	}
+	
 	request = HTTPRequestCreate(connection->buffer);
+	if (request == NULL) {
+		printf("Could not create request object.\n");
+		Release(response);
+		return;
+	}
+	// We use the buffer of the connection
+	// so the connection no longer owns the buffer :)
 	connection->buffer = NULL;
 	
 	// We only support get for now
@@ -351,6 +362,8 @@ bool HTTPConnectionSendFD(HTTPConnection connection, int fd, off_t* offset, size
 
 void HTTPConnectionClose(HTTPConnection connection)
 {
+	printf("Close connection:%p from %s...\n", connection, connection->clientInfoLine);
+	PollUnregister(ServerGetPoll(connection->server), connection->socket);
 	close(connection->socket);
 	connection->socket = -1;
 }

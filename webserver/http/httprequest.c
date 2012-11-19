@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdio.h>
 
 DEFINE_CLASS(HTTPRequest,
 	//
@@ -76,13 +77,27 @@ bool HTTPCanParseBuffer(char* buffer) {
 
 HTTPRequest HTTPRequestCreate(char* buffer)
 {
+	assert(buffer != NULL);
+	
 	HTTPRequest request = malloc(sizeof(struct _HTTPRequest));
+	
+	if (request == NULL) {
+		perror("malloc");
+		return NULL;
+	}
 	
 	memset(request, 0, sizeof(struct _HTTPRequest));
 	
 	ObjectInit(request, HTTPRequestDealloc);
 	
 	request->headerDictionary = DictionaryCreate();
+	
+	if (request->headerDictionary == NULL) {
+		printf("Could not create header dictionary.\n");
+		Release(request);
+		return NULL;
+	}
+	
 	request->inputBackend = buffer;
 	
 	HTTPRequestParse(request, buffer);
