@@ -215,20 +215,32 @@ static void HTTPProcessRequest(HTTPConnection connection)
 		return;
 	}
 	
-	request = HTTPRequestCreate(connection->buffer);
-	if (request == NULL) {
-		printf("Could not create request object.\n");
-		Release(response);
-		return;
-	}
+	void* buffer = connection->buffer;
+	
 	// We use the buffer of the connection
 	// so the connection no longer owns the buffer :)
 	connection->buffer = NULL;
 	
+	request = HTTPRequestCreate(buffer);
+	if (request == NULL) {
+		printf("Could not create request object.\n");
+		
+		HTTPResponseSetStatusCode(response, kHTTPBadRequest);
+		HTTPResponseSetResponseString(response, "400/Bad Request");
+		
+		HTTPResponseFinish(response);
+		
+		HTTPSendResponse(connection, response);
+		Release(response);
+		
+		return;
+	}
+
+	
 	// We only support get for now
 	if (HTTPRequestGetMethod(request) != kHTTPMethodGet) {
 		HTTPResponseSetStatusCode(response, kHTTPErrorNotImplemented);
-		HTTPResponseSetResponseString(response, "404/Not Implemented");
+		HTTPResponseSetResponseString(response, "500/Not Implemented");
 		
 		HTTPResponseFinish(response);
 		

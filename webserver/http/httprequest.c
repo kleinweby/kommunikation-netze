@@ -60,16 +60,19 @@ DEFINE_CLASS(HTTPRequest,
 	void* inputBackend;
 );
 
-static void HTTPRequestParse(HTTPRequest request, char* buffer);
-static void HTTPRequestParseActionLine(HTTPRequest request, char* line);
-static void HTTPRequestParseHeader(HTTPRequest request, char* buffer);
-static void HTTPRequestParseHeaderLine(HTTPRequest request, char* line);
+static bool HTTPRequestParse(HTTPRequest request, char* buffer);
+static bool HTTPRequestParseActionLine(HTTPRequest request, char* line);
+static bool HTTPRequestParseHeader(HTTPRequest request, char* buffer);
+static bool HTTPRequestParseHeaderLine(HTTPRequest request, char* line);
 static void HTTPRequestDealloc(void* ptr);
 
 bool HTTPCanParseBuffer(char* buffer) {
 	assert(buffer != NULL);
 	
 	if (strstr(buffer, kHTTPContentDelimiter))
+		return true;
+		
+	if (strstr(buffer, "\n\n"))
 		return true;
 	
 	return false;
@@ -100,7 +103,10 @@ HTTPRequest HTTPRequestCreate(char* buffer)
 	
 	request->inputBackend = buffer;
 	
-	HTTPRequestParse(request, buffer);
+	if (!HTTPRequestParse(request, buffer)) {
+		Release(request);
+		return NULL;
+	}
 	
 	return request;
 }
@@ -131,17 +137,21 @@ void HTTPRequestDealloc(void* ptr)
 	free(request);
 }
 
-static void HTTPRequestParse(HTTPRequest request, char* buffer)
+static bool HTTPRequestParse(HTTPRequest request, char* buffer)
 {
 	char* actionLine;
 	
 	actionLine = strsep_ext(&buffer, kHTTPLineDelimiter);
 	
-	HTTPRequestParseActionLine(request, actionLine);
-	HTTPRequestParseHeader(request, buffer);
+	if (!HTTPRequestParseActionLine(request, actionLine))
+		return false;
+	if (!HTTPRequestParseHeader(request, buffer))
+		return false;
+		
+	return true;
 }
 
-static void HTTPRequestParseActionLine(HTTPRequest request, char* line)
+static bool HTTPRequestParseActionLine(HTTPRequest request, char* line)
 {
 	char* methodString;
 	char* versionString;
@@ -150,41 +160,54 @@ static void HTTPRequestParseActionLine(HTTPRequest request, char* line)
 	request->path = strsep_ext(&line, " ");
 	versionString = strsep_ext(&line, " ");
 	
+	if (methodString == NULL)
+		return false;
+		
 	if (strncmp(methodString, "GET", strlen("GET")) == 0)
 		request->method = kHTTPMethodGet;
 	else
 		request->method = kHTTPMethodUnkown;
 	
+	if (versionString == NULL)
+		return false;
+		
 	if (strncmp(versionString, "HTTP/1.0", strlen("HTTP/1.0")) == 0)
 		request->version = kHTTPVersion_1_0;
 	else if (strncmp(versionString, "HTTP/1.1", strlen("HTTP/1.1")) == 0)
 		request->version = kHTTPVersion_1_1;
 	else
 		request->version = kHTTPVersionUnkown;
+		
+	return true;
 }
 
-static void HTTPRequestParseHeader(HTTPRequest request, char* buffer)
+static bool HTTPRequestParseHeader(HTTPRequest request, char* buffer)
 {
 	char* line = strsep_ext(&buffer, kHTTPLineDelimiter);
 	
 	while (line != NULL) {
-		HTTPRequestParseHeaderLine(request, line);
+		if (!HTTPRequestParseHeaderLine(request, line))
+			return false;
 		line = strsep_ext(&buffer, kHTTPLineDelimiter);
 	}
+	
+	return true;
 }
 
-static void HTTPRequestParseHeaderLine(HTTPRequest request, char* line)
+static bool HTTPRequestParseHeaderLine(HTTPRequest request, char* line)
 {
 	char* key;
 	char* value;
 	
 	key = strsep_ext(&line, kHTTPHeaderDelimiter);
 	if (!line)
-		return;
+		return false;
 	
 	value = strtrim(line);
 	
 	DictionarySet(request->headerDictionary, key, value);
+	
+	return true;
 }
 
 char* HTTPRequestGetPath(HTTPRequest request)
