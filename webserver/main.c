@@ -29,13 +29,15 @@
 #include "utils/helper.h"
 
 int main(int argc, char** argv) {
-#pragma unused(argc)
-#pragma unused(argv)
+	char* port = "8080";
 	
 	setBlocking(0, false);
 	ObjectRuntimeInit();
+
+	if (argc == 2)
+		port = argv[1];
 	
-	WebServer server = WebServerCreate("8080");
+	WebServer server = WebServerCreate(port);
 	
 	if (server)
 		WebServerRunloop(server);
