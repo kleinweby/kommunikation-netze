@@ -262,6 +262,8 @@ static void HTTPProcessRequest(HTTPConnection connection)
 		HTTPResponseFinish(response);
 		printf("not regular\n");
 		
+		HTTPSendResponse(connection, response);
+		
 		free(resolvedPath);
 		Release(request);
 		Release(response);
