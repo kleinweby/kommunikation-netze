@@ -1,3 +1,6 @@
 [submodule "webserver/BlocksRuntime"]
 	path = webserver/BlocksRuntime
 	url = https://github.com/mackyle/blocksruntime.git
+[submodule "chat/BlocksRuntime"]
+	path = chat/BlocksRuntime
+	url = https://github.com/mackyle/blocksruntime.git
