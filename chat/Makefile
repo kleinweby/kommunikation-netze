@@ -5,7 +5,7 @@ LDFLAGS=-pipe client/gui-lib/libchatgui.a
 # Not the best but should work
 IS_DARWIN=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
 
-SRC_CLIENT=client/main.c client/Client.c utils/object.c utils/helper.c
+SRC_CLIENT=client/main.c client/Client.c utils/object.c utils/helper.c net/poll.c utils/dispatchqueue.c utils/queue.c
 OBJS_CLIENT=$(SRC_CLIENT:.c=.o) BlocksRuntime/libBlocksRuntime.a
 
 SRC_SERVER=server/main.c utils/object.c utils/helper.c

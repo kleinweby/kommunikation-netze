@@ -23,6 +23,8 @@
 #ifndef _POLL_H_
 #define _POLL_H_
 
+#include <poll.h>
+
 #include "utils/object.h"
 #include "utils/dispatchqueue.h"
 

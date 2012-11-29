@@ -23,6 +23,7 @@
 #include "Client.h"
 
 #include "utils/helper.h"
+#include "net/poll.h"
 
 #include "gui-lib/chatgui.h"
 
@@ -33,6 +34,7 @@
 #include <netdb.h>
 #include <string.h>
 #include <stdarg.h>
+#include <Block.h>
 
 DEFINE_CLASS(Client,	
 	int guiInFD;
@@ -40,6 +42,13 @@ DEFINE_CLASS(Client,
 	pid_t guiPID;
 	
 	int socket;
+	
+	Poll poll;
+	bool keepRunning;
+	
+	char* sendBuffer[255];
+	int sendHead;
+	int sendTail;
 );
 
 static void ClientDealloc(void* ptr);
@@ -56,10 +65,19 @@ Client ClientCreate(const char* host, const char* port)
 	
 	ObjectInit(client, ClientDealloc);
 	
+	client->keepRunning = true;
+	
 	client->guiPID = gui_start(&client->guiInFD, &client->guiOutFD);
 	
 	if (client->guiPID == -1) {
 		perror("gui_start");
+		Release(client);
+		return NULL;
+	}
+	
+	client->poll = PollCreate();
+	
+	if (!client->poll) {
 		Release(client);
 		return NULL;
 	}
@@ -69,6 +87,71 @@ Client ClientCreate(const char* host, const char* port)
 		Release(client);
 		return NULL;
 	}
+	
+	PollRegister(client->poll, client->socket, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
+		if ((revents & POLLHUP) > 0) {
+			ClientPrintf(client, "Error in the connection with the server\n");
+			return;
+		}
+		
+		if ((revents & POLLIN) > 0) {
+			// Read
+			char buffer[255];
+			ssize_t len;
+			
+			len = recv(client->socket, buffer, 255, 0);
+			if (len < 0) {
+				ClientPrintf(client, "Error reading");
+				return;
+			}
+			write(client->guiOutFD, buffer, (size_t)len);
+		}
+	});
+	
+	PollRegister(client->poll, client->guiInFD, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
+		if ((revents & POLLIN) > 0) {
+			char *buffer = calloc(1, 255);
+			ssize_t len;
+			
+			len = read(client->guiInFD, buffer, 254);
+			
+			if (len < 0) {
+				perror("read");
+				return;
+			}
+						
+			{
+				__block size_t sentBytes = 0;
+				
+				__block void (^block)() = Block_copy(^{
+					ssize_t s;
+					
+					s = send(client->socket, buffer+sentBytes, (size_t)len-sentBytes, 0);
+					
+					if (s < 0) {
+						perror("send");
+						return;
+					}
+					
+					sentBytes += (size_t)s;
+					
+					if (sentBytes < (size_t)len) {
+						PollRegister(client->poll, client->socket, POLLOUT, 0, NULL, ^(short revents2) {
+							if ((revents2 & POLLOUT) > 0) {
+								block();
+							}
+						});
+					}
+					else {
+						free(buffer);
+					}
+				});
+				
+				block();
+				Block_release(block);
+			}
+		}
+	});
 	
 	return client;
 }
@@ -81,7 +164,7 @@ static void ClientDealloc(void* ptr)
 
 void ClientMain(Client client)
 {
-	#pragma unused(client)
+	while (client->keepRunning) sleep(100);
 }
 
 void ClientPrintf(Client client, char* format, ...)
