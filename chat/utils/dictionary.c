@@ -83,24 +83,32 @@ Dictionary DictionaryCreate()
 
 void* DictionaryGet(Dictionary dict, const char* key)
 {
+	Lock(dict);
+	
 	DictionaryEntry entry = dict->headEntry;
+	void* value = NULL;
 	
 	while(entry != NULL) {
 		int cmp = strcmp(entry->key, key);
 		
-		if (cmp == 0)
-			return (void*)entry->value;
+		if (cmp == 0) {
+			value = (void*)entry->value;
+			break;
+		}
 		else if (cmp < 0)
 			entry = entry->leftEntry;
 		else
 			entry = entry->rightEntry;
 	}
 	
-	return NULL;
+	Unlock(dict);
+	return value;
 }
 
 void DictionarySet(Dictionary dict, const char* key, const void* value)
 {
+	Lock(dict);
+	
 	DictionaryEntry entry = dict->headEntry;
 	
 	while(entry != NULL) {
@@ -108,7 +116,7 @@ void DictionarySet(Dictionary dict, const char* key, const void* value)
 		
 		if (cmp == 0) {
 			entry->value = value;
-			return;
+			break;
 		}
 		else if (cmp < 0) {
 			if (entry->leftEntry)
@@ -117,7 +125,7 @@ void DictionarySet(Dictionary dict, const char* key, const void* value)
 				DictionaryEntry e = DictionaryEntryCreate(key, value);
 				DictionaryEntrySetLeftEntry(entry, e);
 				Release(e);
-				return;
+				break;
 			}
 		}
 		else {
@@ -127,10 +135,12 @@ void DictionarySet(Dictionary dict, const char* key, const void* value)
 				DictionaryEntry e = DictionaryEntryCreate(key, value);
 				DictionaryEntrySetRightEntry(entry, e);
 				Release(e);
-				return;
+				break;
 			}
 		}
 	}
+	
+	Unlock(dict);
 }
 
 void DictionaryDealloc(void* ptr)
@@ -184,6 +194,8 @@ static void DictionaryEntryDealloc(void* ptr)
 DictionaryIterator DictionaryGetIterator(Dictionary dict)
 {
 	assert(dict != NULL);
+	Lock(dict);
+	
 	DictionaryIterator iter = malloc(sizeof(struct _DictionaryIterator));
 	
 	if (iter == NULL) {
@@ -246,9 +258,10 @@ bool DictionaryIteratorNext(DictionaryIterator iter)
 }
 
 static void DictionaryIteratorDealloc(void* ptr)
-{
+{	
 	DictionaryIterator iter = ptr;
-	
+
+	Unlock(iter->dictionary);	
 	Release(iter->dictionary);
 	Release(iter->stack);
 	free(iter);
