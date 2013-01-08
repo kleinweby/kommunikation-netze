@@ -108,6 +108,7 @@ void* DictionaryGet(Dictionary dict, const char* key)
 void DictionarySet(Dictionary dict, const char* key, const void* value)
 {
 	Lock(dict);
+	printf("Set %s\n", key);
 	
 	DictionaryEntry entry = dict->headEntry;
 	
@@ -135,6 +136,86 @@ void DictionarySet(Dictionary dict, const char* key, const void* value)
 				DictionaryEntry e = DictionaryEntryCreate(key, value);
 				DictionaryEntrySetRightEntry(entry, e);
 				Release(e);
+				break;
+			}
+		}
+	}
+	
+	Unlock(dict);
+}
+
+void DictionaryRemove(Dictionary dict, const char* key)
+{
+	Lock(dict);
+	
+	DictionaryEntry parent = NULL;
+	DictionaryEntry entry = dict->headEntry;
+	
+	while(entry != NULL) {
+		int cmp = strcmp(entry->key, key);
+		
+		if (cmp == 0) {
+			// Found it!
+			//
+			// To keep it simple, we move the right node up,
+			// and put the left not at the left most leaf of the right node
+			//
+			
+			if (entry->leftEntry && entry->rightEntry) {
+				DictionaryEntry left = Retain(entry->leftEntry);
+				// Move up
+				if (parent->leftEntry == entry) {
+					DictionaryEntrySetLeftEntry(parent, entry->rightEntry);
+					entry = parent->leftEntry;
+				}
+				else {
+					DictionaryEntrySetRightEntry(parent, entry->rightEntry);
+					entry = parent->rightEntry;
+				}
+			
+				while (entry->leftEntry) entry = entry->leftEntry;
+			
+				DictionaryEntrySetLeftEntry(entry, left);
+				Release(left);
+			}
+			else if (entry->leftEntry) {
+				if (parent->leftEntry == entry)
+					DictionaryEntrySetLeftEntry(parent, entry->leftEntry);
+				else
+					DictionaryEntrySetRightEntry(parent, entry->leftEntry);
+			}
+			else if (entry->rightEntry) {
+				if (parent->leftEntry == entry)
+					DictionaryEntrySetLeftEntry(parent, entry->rightEntry);
+				else
+					DictionaryEntrySetRightEntry(parent, entry->rightEntry);
+			}
+			else {
+				if (parent->leftEntry == entry)
+					DictionaryEntrySetLeftEntry(parent, NULL);
+				else
+					DictionaryEntrySetRightEntry(parent, NULL);
+			}
+			
+			break;
+		}
+		else if (cmp < 0) {
+			if (entry->leftEntry) {
+				parent = entry;
+				entry = entry->leftEntry;
+			}
+			else {
+				// Not present
+				break;
+			}
+		}
+		else {
+			if (entry->rightEntry) {
+				parent = entry;
+				entry = entry->rightEntry;
+			}
+			else {
+				// Not present
 				break;
 			}
 		}

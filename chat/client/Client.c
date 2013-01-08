@@ -88,70 +88,70 @@ Client ClientCreate(const char* host, const char* port)
 		return NULL;
 	}
 	
-	PollRegister(client->poll, client->socket, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
-		if ((revents & POLLHUP) > 0) {
-			ClientPrintf(client, "Error in the connection with the server\n");
-			return;
-		}
-		
-		if ((revents & POLLIN) > 0) {
-			// Read
-			char buffer[255];
-			ssize_t len;
-			
-			len = recv(client->socket, buffer, 255, 0);
-			if (len < 0) {
-				ClientPrintf(client, "Error reading");
-				return;
-			}
-			write(client->guiOutFD, buffer, (size_t)len);
-		}
-	});
-	
-	PollRegister(client->poll, client->guiInFD, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
-		if ((revents & POLLIN) > 0) {
-			char *buffer = calloc(1, 255);
-			ssize_t len;
-			
-			len = read(client->guiInFD, buffer, 254);
-			
-			if (len < 0) {
-				perror("read");
-				return;
-			}
-						
-			{
-				__block size_t sentBytes = 0;
-				
-				__block void (^block)() = Block_copy(^{
-					ssize_t s;
-					
-					s = send(client->socket, buffer+sentBytes, (size_t)len-sentBytes, 0);
-					
-					if (s < 0) {
-						perror("send");
-						return;
-					}
-					
-					sentBytes += (size_t)s;
-					
-					if (sentBytes < (size_t)len) {
-						PollRegister(client->poll, client->socket, POLLOUT, 0, NULL, ^(short revents2) {
-							if ((revents2 & POLLOUT) > 0) {
-								block();
-							}
-						});
-					}
-					else {
-						free(buffer);
-					}
-				});
-				
-				block();
-				Block_release(block);
-			}
-		}
-	});
+	// PollRegister(client->poll, client->socket, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
+	// 	if ((revents & POLLHUP) > 0) {
+	// 		ClientPrintf(client, "Error in the connection with the server\n");
+	// 		return;
+	// 	}
+	// 	
+	// 	if ((revents & POLLIN) > 0) {
+	// 		// Read
+	// 		char buffer[255];
+	// 		ssize_t len;
+	// 		
+	// 		len = recv(client->socket, buffer, 255, 0);
+	// 		if (len < 0) {
+	// 			ClientPrintf(client, "Error reading");
+	// 			return;
+	// 		}
+	// 		write(client->guiOutFD, buffer, (size_t)len);
+	// 	}
+	// });
+	// 
+	// PollRegister(client->poll, client->guiInFD, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
+	// 	if ((revents & POLLIN) > 0) {
+	// 		char *buffer = calloc(1, 255);
+	// 		ssize_t len;
+	// 		
+	// 		len = read(client->guiInFD, buffer, 254);
+	// 		
+	// 		if (len < 0) {
+	// 			perror("read");
+	// 			return;
+	// 		}
+	// 					
+	// 		{
+	// 			__block size_t sentBytes = 0;
+	// 			
+	// 			__block void (^block)() = Block_copy(^{
+	// 				ssize_t s;
+	// 				
+	// 				s = send(client->socket, buffer+sentBytes, (size_t)len-sentBytes, 0);
+	// 				
+	// 				if (s < 0) {
+	// 					perror("send");
+	// 					return;
+	// 				}
+	// 				
+	// 				sentBytes += (size_t)s;
+	// 				
+	// 				if (sentBytes < (size_t)len) {
+	// 					PollRegister(client->poll, client->socket, POLLOUT, 0, NULL, ^(short revents2) {
+	// 						if ((revents2 & POLLOUT) > 0) {
+	// 							block();
+	// 						}
+	// 					});
+	// 				}
+	// 				else {
+	// 					free(buffer);
+	// 				}
+	// 			});
+	// 			
+	// 			block();
+	// 			Block_release(block);
+	// 		}
+	// 	}
+	// });
 	
 	return client;
 }

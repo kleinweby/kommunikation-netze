@@ -20,62 +20,31 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef _DICTIONARY_H_
-#define _DICTIONARY_H_
+#ifndef _LISTENER_H_
+#define _LISTENER_H_
 
-#include "utils/object.h"
+#include "server.h"
 
-#include <stdbool.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
-DECLARE_CLASS(Dictionary);
-DECLARE_CLASS(DictionaryIterator);
+DECLARE_CLASS(Listener);
 
 //
-// Creates a new empty dictionary;
+//
 //
 OBJECT_RETURNS_RETAINED
-Dictionary DictionaryCreate();
+Listener CreateListener(Server server, struct addrinfo *addrInfo);
 
 //
-// Gets the value associated with key
+// Get the server
 //
-void* DictionaryGet(Dictionary dict, const char* key);
+Server ListenerGetServer(Listener Server);
 
 //
-// Sets the value associated with key.
+// Returns the poll object accossiated with the listener
 //
-// Note you mus ensure that the key and the value
-// is keept valid.
-//
-void DictionarySet(Dictionary dict, const char* key, const void* value);
+Poll ListenerGetPoll(Listener listener);
 
-//
-// Removes a given key
-//
-void DictionaryRemove(Dictionary dict, const char* key);
-
-//
-// Gets a iterator. The order which will be iterated
-// is implemation detail.
-//
-OBJECT_RETURNS_RETAINED
-DictionaryIterator DictionaryGetIterator(Dictionary dict);
-
-//
-// Get the key of the current object
-//
-char* DictionaryIteratorGetKey(DictionaryIterator iter);
-
-//
-// Get the value of the current object
-//
-void* DictionaryIteratorGetValue(DictionaryIterator iter);
-
-//
-// Advance to the next object
-//
-// Returns false when the end is reached
-//
-bool DictionaryIteratorNext(DictionaryIterator iter);
-
-#endif /* _DICTIONARY_H_ */
+#endif /* _LISTENER_H_ */

@@ -20,62 +20,41 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef _DICTIONARY_H_
-#define _DICTIONARY_H_
+#ifndef _SERVER_H_
+#define _SERVER_H_
 
 #include "utils/object.h"
+#include "utils/dictionary.h"
+#include "net/poll.h"
 
-#include <stdbool.h>
-
-DECLARE_CLASS(Dictionary);
-DECLARE_CLASS(DictionaryIterator);
+DECLARE_CLASS(Server);
 
 //
-// Creates a new empty dictionary;
+// Creates a new server an listen on the given port
+// on any possible interface
 //
 OBJECT_RETURNS_RETAINED
-Dictionary DictionaryCreate();
+Server ServerCreate(const char* port);
 
 //
-// Gets the value associated with key
+// Call this to run the main server queue
 //
-void* DictionaryGet(Dictionary dict, const char* key);
+void ServerMain(Server server);
 
 //
-// Sets the value associated with key.
+// Get a dictionary with all the clients,
+// the key is the nick of the client
 //
-// Note you mus ensure that the key and the value
-// is keept valid.
-//
-void DictionarySet(Dictionary dict, const char* key, const void* value);
+Dictionary ServerGetClients(Server server);
 
 //
-// Removes a given key
+// Get the poll object for the for the server
 //
-void DictionaryRemove(Dictionary dict, const char* key);
+Poll ServerGetPoll(Server server);
 
 //
-// Gets a iterator. The order which will be iterated
-// is implemation detail.
+// Sends a (formatted) channel message to all users
 //
-OBJECT_RETURNS_RETAINED
-DictionaryIterator DictionaryGetIterator(Dictionary dict);
+void ServerSendChannelMessage(Server server, char* msg);
 
-//
-// Get the key of the current object
-//
-char* DictionaryIteratorGetKey(DictionaryIterator iter);
-
-//
-// Get the value of the current object
-//
-void* DictionaryIteratorGetValue(DictionaryIterator iter);
-
-//
-// Advance to the next object
-//
-// Returns false when the end is reached
-//
-bool DictionaryIteratorNext(DictionaryIterator iter);
-
-#endif /* _DICTIONARY_H_ */
+#endif /* _SERVER_H_ */

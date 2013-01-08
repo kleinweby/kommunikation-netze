@@ -22,14 +22,24 @@
 
 #include "utils/object.h"
 #include "utils/helper.h"
+#include "Server.h"
 
 int main(int argc, char** argv) {
-#pragma unused(argc)
-#pragma unused(argv)
-	
+	#pragma unused (argc)
+	#pragma unused (argv)
 	setBlocking(0, false);
 	ObjectRuntimeInit();
 	
-	return -1;
+	Server server = ServerCreate("4444");
+	
+	if (!server) {
+		return -1;
+	}
+	
+	ServerMain(server);
+	
+	Release(server);
+	
+	return 0;
 }
 

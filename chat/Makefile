@@ -8,7 +8,7 @@ IS_DARWIN=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
 SRC_CLIENT=client/main.c client/Client.c utils/object.c utils/helper.c net/poll.c utils/dispatchqueue.c utils/queue.c
 OBJS_CLIENT=$(SRC_CLIENT:.c=.o) BlocksRuntime/libBlocksRuntime.a
 
-SRC_SERVER=server/main.c utils/object.c utils/helper.c
+SRC_SERVER=server/main.c server/server.c server/listener.c server/client.c utils/object.c utils/helper.c utils/str_helper.c utils/dictionary.c utils/stack.c net/poll.c utils/dispatchqueue.c utils/queue.c
 OBJS_SERVER=$(SRC_SERVER:.c=.o) BlocksRuntime/libBlocksRuntime.a
 
 ifneq ($(IS_DARWIN), 1)

@@ -20,62 +20,31 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef _DICTIONARY_H_
-#define _DICTIONARY_H_
+#ifndef _CLIENT_H_
+#define _CLIENT_H_
 
 #include "utils/object.h"
+#include "server/listener.h"
 
-#include <stdbool.h>
-
-DECLARE_CLASS(Dictionary);
-DECLARE_CLASS(DictionaryIterator);
+DECLARE_CLASS(Client);
 
 //
-// Creates a new empty dictionary;
+// Creates a new client and insert it with a temporay
+// name into the server
 //
 OBJECT_RETURNS_RETAINED
-Dictionary DictionaryCreate();
+Client ClientCreate(Listener listener, int socket, struct sockaddr_in6 addrInfo);
 
 //
-// Gets the value associated with key
+// Disconnects a given client
 //
-void* DictionaryGet(Dictionary dict, const char* key);
+void ClientDisconnect(Client client, char* reason);
 
 //
-// Sets the value associated with key.
+// Writes a line (\n will be appended) to the client
 //
-// Note you mus ensure that the key and the value
-// is keept valid.
+// Note: write is not synchronous
 //
-void DictionarySet(Dictionary dict, const char* key, const void* value);
+void ClientWriteLine(Client client, char* line);
 
-//
-// Removes a given key
-//
-void DictionaryRemove(Dictionary dict, const char* key);
-
-//
-// Gets a iterator. The order which will be iterated
-// is implemation detail.
-//
-OBJECT_RETURNS_RETAINED
-DictionaryIterator DictionaryGetIterator(Dictionary dict);
-
-//
-// Get the key of the current object
-//
-char* DictionaryIteratorGetKey(DictionaryIterator iter);
-
-//
-// Get the value of the current object
-//
-void* DictionaryIteratorGetValue(DictionaryIterator iter);
-
-//
-// Advance to the next object
-//
-// Returns false when the end is reached
-//
-bool DictionaryIteratorNext(DictionaryIterator iter);
-
-#endif /* _DICTIONARY_H_ */
+#endif // _CLIENT_H_
