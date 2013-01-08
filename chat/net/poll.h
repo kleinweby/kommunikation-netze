@@ -29,14 +29,7 @@
 #include "utils/dispatchqueue.h"
 
 DECLARE_CLASS(Poll);
-
-typedef enum {
-	//
-	// This means that a registered block
-	// is not removed after it has been triggerd
-	//
-	kPollRepeatFlag = (1 << 1)
-} PollFlags;
+DECLARE_CLASS(PollDescriptor);
 
 //
 // Creates a new Poll object
@@ -53,11 +46,26 @@ Poll PollCreate();
 // The block will be dispatched on the given queue.
 // Null means that it is called inplace.
 //
-void PollRegister(Poll poll, int fd, short events, PollFlags flags, DispatchQueue queue, void (^block)(short revents));
+// Returns a poll descriptor. You can use to manipulate
+// the registered block. WHen the returned descriptor
+// gets released it will be removed from poll.
+//
+OBJECT_RETURNS_RETAINED
+PollDescriptor PollRegister(Poll poll, int fd, short events, DispatchQueue queue, void (^block)(short revents));
 
 //
-// Removes a registered listener (if any)
+// Adds a given event to the poll descriptor
 //
-void PollUnregister(Poll poll, int fd);
+void PollDescriptorAddEvent(PollDescriptor pd, short event);
+
+//
+// Removes a given event from a descriptor (if set)
+//
+void PollDescriptorRemoveEvent(PollDescriptor pd, short event);
+
+//
+// Removes the descriptor from the poll
+//
+void PollDescritptorRemove(PollDescriptor pd);
 
 #endif /* _POLL_H_ */
