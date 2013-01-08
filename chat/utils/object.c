@@ -46,6 +46,12 @@ bool ObjectInit(void* _obj, void (*Dealloc)(void* ptr))
 	obj->retainCount = 1;
 	obj->Dealloc = Dealloc;
 	memcpy(obj->magic, kObjectMagic, 4);
+
+	pthread_mutexattr_t attr;
+
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+	pthread_mutex_init(&obj->mutex, &attr);
 	
 	return true;
 }
@@ -89,4 +95,23 @@ void _Release(Object obj)
 		memcpy(obj->magic, kZombieObjectMagic, 4);
 		obj->Dealloc(obj);
 	}
+}
+
+void Lock(void* _object)
+{
+	Object object = Retain(_object);
+	
+	assert(object != NULL);
+	
+	pthread_mutex_lock(&object->mutex);
+}
+
+void Unlock(void* _object)
+{
+	Object object = _object;
+	
+	assert(object != NULL);
+	
+	pthread_mutex_unlock(&object->mutex);
+	Release(object);
 }

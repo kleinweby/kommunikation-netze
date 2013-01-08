@@ -24,6 +24,7 @@
 #define _OBJECT_H_
 
 #include <stdbool.h>
+#include <pthread.h>
 
 //
 // Internal opaque object structure. Do NOT use
@@ -44,6 +45,11 @@ struct _Object {
 	// Is called when retain Count reaches zero
 	//
 	void (*Dealloc)(void* ptr);
+	
+	//
+	// A mutex to lock the whole object gobally
+	//
+	pthread_mutex_t mutex;
 };
 
 //
@@ -114,8 +120,18 @@ void _Release(Object OBJECT_CONSUME object);
 //
 // Typecorrect retain and release
 //
-
 #define Retain(...) ((__typeof(__VA_ARGS__)) _Retain((void*)(__VA_ARGS__)))
 #define Release(...) _Release((void *)(__VA_ARGS__))
+
+//
+// Locks the given object
+//
+void Lock(void* object);
+
+//
+// Unlock the given object
+//
+void Unlock(void* object);
+
 
 #endif
