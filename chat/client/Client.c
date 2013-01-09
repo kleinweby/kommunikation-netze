@@ -46,13 +46,27 @@ DEFINE_CLASS(Client,
 	Poll poll;
 	bool keepRunning;
 	
-	char* sendBuffer[255];
-	int sendHead;
-	int sendTail;
+	PollDescriptor socketPollDescriptor;
+	PollDescriptor guiOutPollDescriptor;
+	PollDescriptor guiInPollDescriptor;
+	
+	// Recving
+	char* inBuffer;
+	uint32_t inBufferLength;
+	uint32_t inBufferFilled;
+	
+	// Sending
+	char* outBuffer;
+	uint32_t outBufferLength;
+	uint32_t outBufferFilled;
 );
 
 static void ClientDealloc(void* ptr);
 static bool ClientConnect(Client client, const char* host, const char* port);
+static void ClientReceive(Client client);
+static void ClientSend(Client client);
+static void ClientGUIRead(Client client);
+static void ClientGUIWrite(Client client);
 
 Client ClientCreate(const char* host, const char* port)
 {
@@ -88,83 +102,54 @@ Client ClientCreate(const char* host, const char* port)
 		return NULL;
 	}
 	
-	// PollRegister(client->poll, client->socket, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
-	// 	if ((revents & POLLHUP) > 0) {
-	// 		ClientPrintf(client, "Error in the connection with the server\n");
-	// 		return;
-	// 	}
-	// 	
-	// 	if ((revents & POLLIN) > 0) {
-	// 		// Read
-	// 		char buffer[255];
-	// 		ssize_t len;
-	// 		
-	// 		len = recv(client->socket, buffer, 255, 0);
-	// 		if (len < 0) {
-	// 			ClientPrintf(client, "Error reading");
-	// 			return;
-	// 		}
-	// 		write(client->guiOutFD, buffer, (size_t)len);
-	// 	}
-	// });
-	// 
-	// PollRegister(client->poll, client->guiInFD, POLLIN, kPollRepeatFlag, NULL, ^(short revents) {
-	// 	if ((revents & POLLIN) > 0) {
-	// 		char *buffer = calloc(1, 255);
-	// 		ssize_t len;
-	// 		
-	// 		len = read(client->guiInFD, buffer, 254);
-	// 		
-	// 		if (len < 0) {
-	// 			perror("read");
-	// 			return;
-	// 		}
-	// 					
-	// 		{
-	// 			__block size_t sentBytes = 0;
-	// 			
-	// 			__block void (^block)() = Block_copy(^{
-	// 				ssize_t s;
-	// 				
-	// 				s = send(client->socket, buffer+sentBytes, (size_t)len-sentBytes, 0);
-	// 				
-	// 				if (s < 0) {
-	// 					perror("send");
-	// 					return;
-	// 				}
-	// 				
-	// 				sentBytes += (size_t)s;
-	// 				
-	// 				if (sentBytes < (size_t)len) {
-	// 					PollRegister(client->poll, client->socket, POLLOUT, 0, NULL, ^(short revents2) {
-	// 						if ((revents2 & POLLOUT) > 0) {
-	// 							block();
-	// 						}
-	// 					});
-	// 				}
-	// 				else {
-	// 					free(buffer);
-	// 				}
-	// 			});
-	// 			
-	// 			block();
-	// 			Block_release(block);
-	// 		}
-	// 	}
-	// });
+	client->socketPollDescriptor = PollRegister(client->poll, client->socket, POLLIN, NULL, ^(short revents) {
+		if ((revents & POLLHUP) > 0) {
+			client->keepRunning = false;
+		}
+		else if ((revents & POLLIN) > 0) {
+			ClientReceive(client);
+		}
+		else if ((revents & POLLOUT) > 0) {
+			ClientSend(client);
+		}
+	});
+	
+	client->guiInPollDescriptor = PollRegister(client->poll, client->guiInFD, POLLIN, NULL, ^(short revents) {
+		if ((revents & POLLHUP) > 0) {
+			client->keepRunning = false;
+		}
+		else if ((revents & POLLIN) > 0) {
+			ClientGUIRead(client);
+		}
+	});
+	
+	client->guiOutPollDescriptor = PollRegister(client->poll, client->guiOutFD, 0, NULL, ^(short revents) {
+		if ((revents & POLLHUP) > 0) {
+			client->keepRunning = false;
+		}
+		else if ((revents & POLLOUT) > 0) {
+			ClientGUIWrite(client);
+		}
+	});
 	
 	return client;
 }
 
 static void ClientDealloc(void* ptr)
 {
+	Client client = ptr;
 	
+	close(client->guiInFD);
+	close(client->guiOutFD);
+	close(client->socket);
 	free(ptr);
 }
 
 void ClientMain(Client client)
 {
-	while (client->keepRunning) sleep(100);
+	while (client->keepRunning) sleep(1);
+	
+	printf("Quitting...");
 }
 
 void ClientPrintf(Client client, char* format, ...)
@@ -228,4 +213,134 @@ static bool ClientConnect(Client client, const char* host, const char* port)
 	client->socket = sock;
 	
 	return sock > 0;
+}
+
+static void ClientReceive(Client client)
+{
+	// Make room in the buffer, if non avaiable
+	if (client->inBufferLength - client->inBufferFilled < 1 /* something */) {
+		client->inBufferLength *= 2;
+		if (client->inBufferLength < 1024)
+			client->inBufferLength = 1024;
+		client->inBuffer = realloc(client->inBuffer, client->inBufferLength);
+		if (client->inBuffer == NULL) {
+			perror("realloc");
+			// TODO
+			return;
+		}
+		
+		// Initialize the new buffer to zero
+		memset(client->inBuffer+client->inBufferFilled, 0, client->inBufferLength - client->inBufferFilled);
+	}
+	
+	ssize_t len = recv(client->socket, client->inBuffer+client->inBufferFilled, client->inBufferLength - client->inBufferFilled - 1 /* \0 at end */, 0);
+	
+	if (len < 0) {
+		perror("recv");
+		abort();
+	}
+	else if (len == 0) {
+		client->keepRunning = false;
+	}
+	else {
+		client->inBufferFilled += len;
+		
+		// Inform that we want to send, if we're not already sending
+		PollDescriptorAddEvent(client->guiOutPollDescriptor, POLLOUT);
+	}
+}
+
+static void ClientSend(Client client)
+{
+	ssize_t len;
+	
+	len = send(client->socket, client->outBuffer, client->outBufferFilled, 0);
+	
+	if (len < 0) {
+		perror("send");
+		abort();
+	}
+	else if (len == 0) {
+		client->keepRunning = false;
+	}
+	else {
+		// Everything was send, so discard buffer
+		if (client->outBufferFilled == len) {
+			client->outBufferFilled = client->outBufferLength = 0;
+			free(client->outBuffer);
+			client->outBuffer = NULL;
+			
+			// Don't want to send anymore
+			PollDescriptorRemoveEvent(client->socketPollDescriptor, POLLOUT);
+		}
+		else {
+			memmove(client->outBuffer, client->outBuffer+len, client->outBufferFilled - len);
+			// Don't shrink the buffer, only deallocated as seen above.
+		}
+	}
+}
+
+static void ClientGUIRead(Client client)
+{
+	// Make room in the buffer, if non avaiable
+	if (client->outBufferLength - client->outBufferFilled < 1 /* something */) {
+		client->outBufferLength *= 2;
+		if (client->outBufferLength < 1024)
+			client->outBufferLength = 1024;
+		client->outBuffer = realloc(client->outBuffer, client->outBufferLength);
+		if (client->outBuffer == NULL) {
+			perror("realloc");
+			// TODO
+			return;
+		}
+		
+		// Initialize the new buffer to zero
+		memset(client->outBuffer+client->outBufferFilled, 0, client->outBufferLength - client->outBufferFilled);
+	}
+	
+	ssize_t len = read(client->guiInFD, client->outBuffer+client->outBufferFilled, client->outBufferLength - client->outBufferFilled);
+	
+	if (len < 0) {
+		perror("recv");
+		abort();
+	}
+	else if (len == 0) {
+		client->keepRunning = false;
+	}
+	else {
+		client->outBufferFilled += len;
+		
+		// Inform that we want to send, if we're not already sending
+		PollDescriptorAddEvent(client->socketPollDescriptor, POLLOUT);
+	}
+}
+
+static void ClientGUIWrite(Client client)
+{
+	ssize_t len;
+	
+	len = write(client->guiOutFD, client->inBuffer, client->inBufferFilled);
+	
+	if (len < 0) {
+		perror("send");
+		abort();
+	}
+	else if (len == 0) {
+		client->keepRunning = false;
+	}
+	else {
+		// Everything was send, so discard buffer
+		if (client->inBufferFilled == len) {
+			client->inBufferFilled = client->inBufferLength = 0;
+			free(client->inBuffer);
+			client->inBuffer = NULL;
+			
+			// Don't want to send anymore
+			PollDescriptorRemoveEvent(client->guiOutPollDescriptor, POLLOUT);
+		}
+		else {
+			memmove(client->inBuffer, client->inBuffer+len, client->inBufferFilled - len);
+			// Don't shrink the buffer, only deallocated as seen above.
+		}
+	}
 }
