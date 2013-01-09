@@ -1,6 +1,6 @@
 CC=clang
-CFLAGS=-Weverything -Wno-padded -Wno-missing-prototypes -Werror -std=gnu99 -ggdb -I. -pipe -IBlocksRuntime/BlocksRuntime -D$(shell uname | tr '[:lower:]' '[:upper:]')
-LDFLAGS=-pipe client/gui-lib/libchatgui.a
+CFLAGS=-Weverything -Wno-padded -Wno-missing-prototypes -Wno-format-nonliteral -Werror -std=gnu99 -ggdb -I. -pipe -IBlocksRuntime/BlocksRuntime -D$(shell uname | tr '[:lower:]' '[:upper:]')
+LDFLAGS=-pipe
 
 # Not the best but should work
 IS_DARWIN=$(shell (uname -a | grep -q -i darwin) && echo 1 || echo 0)
@@ -35,7 +35,7 @@ chatserver: $(OBJS_SERVER)
 	
 chatclient: $(OBJS_CLIENT)
 	@echo "[LD] $@"
-	@$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^  gui-lib/libchatgui64.a `pkg-config --libs gtk+-2.0`
 
 BlocksRuntime/libBlocksRuntime.a:
 	cd BlocksRuntime && ./buildlib

@@ -22,7 +22,7 @@
 
 #include "utils/object.h"
 #include "utils/helper.h"
-#include "Server.h"
+#include "server.h"
 
 int main(int argc, char** argv) {
 	#pragma unused (argc)

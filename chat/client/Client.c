@@ -35,6 +35,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <Block.h>
+#include <signal.h>
+
 
 DEFINE_CLASS(Client,	
 	int guiInFD;
@@ -70,6 +72,7 @@ static void ClientGUIWrite(Client client);
 
 Client ClientCreate(const char* host, const char* port)
 {
+printf("Client\n");
 	Client client = calloc(1, sizeof(struct _Client));
 	
 	if (client == NULL) {
@@ -92,6 +95,7 @@ Client ClientCreate(const char* host, const char* port)
 	client->poll = PollCreate();
 	
 	if (!client->poll) {
+                printf("poll");
 		Release(client);
 		return NULL;
 	}
@@ -138,7 +142,7 @@ Client ClientCreate(const char* host, const char* port)
 static void ClientDealloc(void* ptr)
 {
 	Client client = ptr;
-	
+	kill(client->guiPID, SIGTERM);
 	close(client->guiInFD);
 	close(client->guiOutFD);
 	close(client->socket);
@@ -150,6 +154,7 @@ void ClientMain(Client client)
 	while (client->keepRunning) sleep(1);
 	
 	printf("Quitting...");
+	kill(client->guiPID, SIGTERM);
 }
 
 void ClientPrintf(Client client, char* format, ...)
@@ -158,11 +163,16 @@ void ClientPrintf(Client client, char* format, ...)
 	
 	va_list ap;
 	va_start(ap, format);
-	vasprintf(&str, format, ap);
+	str = malloc((size_t)vsnprintf(NULL, 0, format, ap) + 1);
+	va_end(ap);
+	if (str == NULL) abort();
+	va_start(ap, format);
+	vsprintf(str, format, ap);
 	va_end(ap);
 	
 	// Not interested in status
 	write(client->guiOutFD, str, strlen(str));
+	free(str);
 }
 
 static bool ClientConnect(Client client, const char* host, const char* port)
@@ -188,6 +198,7 @@ static bool ClientConnect(Client client, const char* host, const char* port)
 		sock = socket(server->ai_family, server->ai_socktype, server->ai_protocol);
 	
 		if (sock < 0) {
+			perror("socket");
 			continue;
 		}
 		
@@ -201,6 +212,7 @@ static bool ClientConnect(Client client, const char* host, const char* port)
 		}
 		
 		if (connect(sock, server->ai_addr, server->ai_addrlen) < 0) {
+			perror("connect");
 			close(sock);
 			sock = -1;
 		} 
@@ -233,7 +245,7 @@ static void ClientReceive(Client client)
 		memset(client->inBuffer+client->inBufferFilled, 0, client->inBufferLength - client->inBufferFilled);
 	}
 	
-	ssize_t len = recv(client->socket, client->inBuffer+client->inBufferFilled, client->inBufferLength - client->inBufferFilled - 1 /* \0 at end */, 0);
+	ssize_t len = recv(client->socket, client->inBuffer+client->inBufferFilled, client->inBufferLength - client->inBufferFilled, 0);
 	
 	if (len < 0) {
 		perror("recv");
@@ -274,7 +286,7 @@ static void ClientSend(Client client)
 			PollDescriptorRemoveEvent(client->socketPollDescriptor, POLLOUT);
 		}
 		else {
-			memmove(client->outBuffer, client->outBuffer+len, client->outBufferFilled - len);
+			memmove(client->outBuffer, client->outBuffer+len, (size_t)(client->outBufferFilled - len));
 			// Don't shrink the buffer, only deallocated as seen above.
 		}
 	}
@@ -339,7 +351,7 @@ static void ClientGUIWrite(Client client)
 			PollDescriptorRemoveEvent(client->guiOutPollDescriptor, POLLOUT);
 		}
 		else {
-			memmove(client->inBuffer, client->inBuffer+len, client->inBufferFilled - len);
+			memmove(client->inBuffer, client->inBuffer+len, (size_t)(client->inBufferFilled - len));
 			// Don't shrink the buffer, only deallocated as seen above.
 		}
 	}

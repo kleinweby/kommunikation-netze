@@ -30,6 +30,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <stdint.h>
 
 DEFINE_CLASS(Client, 
 	Listener listener;
@@ -53,6 +54,26 @@ DEFINE_CLASS(Client,
 	uint32_t outBufferLength;
 	uint32_t outBufferFilled;
 );
+
+static int my_asprintf(char **strp, const char *fmt, ...)
+{
+    int len;
+
+    va_list ap;
+    va_start(ap, fmt);
+    len = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    *strp = malloc((size_t)len + 1 /*\0*/);
+    if (*strp == NULL) {
+        va_end(ap);
+        return -1;
+    }
+    va_start(ap, fmt);
+    vsprintf(*strp, fmt, ap);
+    va_end(ap);
+
+    return len;
+}
 
 static void ClientDealloc(void* ptr);
 
@@ -113,8 +134,8 @@ Client ClientCreate(Listener listener, int socket, struct sockaddr_in6 addrInfo)
 		uint32_t i;
 		for (i = 1; i < UINT32_MAX; i++) {
 			char* nick;
-		
-			if (asprintf(&nick, "Derp%d", i) >= 0) {
+	
+			if (my_asprintf(&nick, "Derp%u", i) >= 0) {
 				if (ClientSetNickname(client, nick)) {
 					free(nick);
 					break;
@@ -131,7 +152,7 @@ Client ClientCreate(Listener listener, int socket, struct sockaddr_in6 addrInfo)
 	{
 		char* msg;
 		
-		if (asprintf(&msg, "%s has entered...", client->nickname) >= 0) {
+		if (my_asprintf(&msg, "%s has entered...", client->nickname) >= 0) {
 			ServerSendChannelMessage(ListenerGetServer(client->listener), msg);
 			free(msg);
 		}
@@ -152,7 +173,7 @@ void ClientDisconnect(Client client, char* reason)
 	{
 		char* msg;
 		
-		if (asprintf(&msg, "%s has left...", client->nickname) >= 0) {
+		if (my_asprintf(&msg, "%s has left...", client->nickname) >= 0) {
 			ServerSendChannelMessage(ListenerGetServer(client->listener), msg);
 			free(msg);
 		}
@@ -195,7 +216,7 @@ static void ClientDoRead(Client client)
 	}
 	else {
 		client->inBufferFilled += len;
-		
+
 		// Do we have a \n?
 		char* newlineSeparator = strchr(client->inBuffer, '\n');
 		if (newlineSeparator) { // Yes, handle line
@@ -248,7 +269,7 @@ static void ClientDoWrite(Client client)
 			PollDescriptorRemoveEvent(client->pollDescriptor, POLLOUT);
 		}
 		else {
-			memmove(client->outBuffer, client->outBuffer+len, client->outBufferFilled - len);
+			memmove(client->outBuffer, client->outBuffer+len, (size_t)(client->outBufferFilled - len));
 			// Don't shrink the buffer, only deallocated as seen above.
 		}
 	}
@@ -284,7 +305,7 @@ static void ClientHandleLine(Client client, char* line)
 		// Construct channel message
 		char* msg;
 		
-		if (asprintf(&msg, "%s: %s", client->nickname, line) > 0) {
+		if (my_asprintf(&msg, "%s: %s", client->nickname, line) > 0) {
 			ServerSendChannelMessage(ListenerGetServer(client->listener), msg);
 			free(msg);
 		} 
@@ -360,12 +381,12 @@ static void ClientHandleNickCommand(Client client, char* arg)
 	}
 	
 	char* oldnick;
-	asprintf(&oldnick, "%s", client->nickname);
+	my_asprintf(&oldnick, "%s", client->nickname);
 	
 	if (ClientSetNickname(client, arg)) {
 		char* msg;
 		
-		if (asprintf(&msg, "%s is now %s", oldnick, client->nickname) >= 0) {
+		if (my_asprintf(&msg, "%s is now %s", oldnick, client->nickname) >= 0) {
 			ServerSendChannelMessage(ListenerGetServer(client->listener), msg);
 			free(msg);
 		} 
@@ -406,7 +427,7 @@ static void ClientHandleMsgCommand(Client client, char* arg)
 	{
 		char* msg;
 		
-		if (asprintf(&msg, "%s->%s: %s", client->nickname, recpt->nickname, message) >= 0) {
+		if (my_asprintf(&msg, "%s->%s: %s", client->nickname, recpt->nickname, message) >= 0) {
 			ClientWriteLine(client, msg);
 			ClientWriteLine(recpt, msg);
 			free(msg);

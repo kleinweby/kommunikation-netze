@@ -33,7 +33,6 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
 	}
 	
-	setBlocking(0, false);
 	ObjectRuntimeInit();
 	
 	Client client = ClientCreate(argv[1], argv[2]);

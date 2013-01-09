@@ -56,6 +56,7 @@ int connectToServer(const char* host, const char* port) {
 		sock = socket(server->ai_family, server->ai_socktype, server->ai_protocol);
 	
 		if (sock < 0) {
+			perror("socket");
 			continue;
 		}
 		
