@@ -163,32 +163,39 @@ void DictionaryRemove(Dictionary dict, const char* key)
 			
 			if (entry->leftEntry && entry->rightEntry) {
 				DictionaryEntry left = Retain(entry->leftEntry);
+				DictionaryEntry right = Retain(entry->rightEntry);
+				
 				// Move up
 				if (parent->leftEntry == entry) {
-					DictionaryEntrySetLeftEntry(parent, entry->rightEntry);
-					entry = parent->leftEntry;
+					DictionaryEntrySetLeftEntry(parent, right);
+					entry = right;
 				}
 				else {
-					DictionaryEntrySetRightEntry(parent, entry->rightEntry);
-					entry = parent->rightEntry;
+					DictionaryEntrySetRightEntry(parent, right);
+					entry = right;
 				}
 			
 				while (entry->leftEntry) entry = entry->leftEntry;
 			
 				DictionaryEntrySetLeftEntry(entry, left);
 				Release(left);
+				Release(right);
 			}
 			else if (entry->leftEntry) {
+				DictionaryEntry e = Retain(entry->leftEntry);
 				if (parent->leftEntry == entry)
-					DictionaryEntrySetLeftEntry(parent, entry->leftEntry);
+					DictionaryEntrySetLeftEntry(parent, e);
 				else
-					DictionaryEntrySetRightEntry(parent, entry->leftEntry);
+					DictionaryEntrySetRightEntry(parent, e);
+				Release(e);
 			}
 			else if (entry->rightEntry) {
+				DictionaryEntry e = Retain(entry->rightEntry);
 				if (parent->leftEntry == entry)
-					DictionaryEntrySetLeftEntry(parent, entry->rightEntry);
+					DictionaryEntrySetLeftEntry(parent, e);
 				else
-					DictionaryEntrySetRightEntry(parent, entry->rightEntry);
+					DictionaryEntrySetRightEntry(parent, e);
+				Release(e);
 			}
 			else {
 				if (parent->leftEntry == entry)
