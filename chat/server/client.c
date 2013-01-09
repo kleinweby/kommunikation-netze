@@ -63,6 +63,7 @@ static void ClientDoWrite(Client client);
 static void ClientHandleLine(Client client, char* line);
 
 static void ClientHandleNickCommand(Client client, char* arg);
+static void ClientHandleMsgCommand(Client client, char* arg);
 
 struct CommandDef {
 	char* name;
@@ -71,6 +72,7 @@ struct CommandDef {
 
 struct CommandDef CommandDefs[] = {
 	{"nick", ClientHandleNickCommand},
+	{"msg", ClientHandleMsgCommand},
 	{NULL, NULL}
 };
 
@@ -370,4 +372,42 @@ static void ClientHandleNickCommand(Client client, char* arg)
 		ClientWriteLine(client, "-> This nick is already used.");
 	
 	free(oldnick);
+}
+
+static void ClientHandleMsgCommand(Client client, char* arg)
+{
+	if (arg == NULL) {
+		ClientWriteLine(client, "-> /msg <name> <message>");
+		return;
+	}
+	
+	char* name = strsep_ext(&arg, " ");
+	char* message = arg;
+	
+	if (name == NULL || strlen(name) == 0) {
+		ClientWriteLine(client, "-> /msg <name> <message>");
+		return;
+	}
+	
+	if (message == NULL || strlen(message) == 0) {
+		ClientWriteLine(client, "-> /msg <name> <message>");
+		return;
+	}
+	
+	Client recpt = DictionaryGet(ServerGetClients(ListenerGetServer(client->listener)), name);
+	
+	if (recpt == NULL) {
+		ClientWriteLine(client, "-> Recipient unkown");
+		return;
+	}
+	
+	{
+		char* msg;
+		
+		if (asprintf(&msg, "%s->%s: %s", client->nickname, recpt->nickname, message) >= 0) {
+			ClientWriteLine(client, msg);
+			ClientWriteLine(recpt, msg);
+			free(msg);
+		}
+	}
 }

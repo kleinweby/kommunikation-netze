@@ -39,8 +39,12 @@ char* strtrim(char* string) {
 	while(isspace(*string)) 
 		string++;
 	
-	while(strlen(string) > 0 && isspace(string[strlen(string)]))
-		string[strlen(string)] = '\0';
+	{
+		char* ptr = string;
+		
+		for (;*ptr != '\0' && !isspace(*ptr); ptr++);
+		*ptr = '\0';
+	}
 	
 	return string;
 }
