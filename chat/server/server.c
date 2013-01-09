@@ -146,9 +146,10 @@ void ServerSendChannelMessage(Server server, char* msg)
 	
 	iter = DictionaryGetIterator(server->clients);
 	
-	do {
+	while (DictionaryIteratorGetKey(iter) != NULL) {
 		Client c = DictionaryIteratorGetValue(iter);
 		ClientWriteLine(c, msg);
+		
+		DictionaryIteratorNext(iter);
 	}
-	while (DictionaryIteratorNext(iter));
 }

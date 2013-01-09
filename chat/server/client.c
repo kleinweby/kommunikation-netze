@@ -64,6 +64,7 @@ static void ClientHandleLine(Client client, char* line);
 
 static void ClientHandleNickCommand(Client client, char* arg);
 static void ClientHandleMsgCommand(Client client, char* arg);
+static void ClientHandleListCommand(Client client, char* arg);
 
 struct CommandDef {
 	char* name;
@@ -73,6 +74,7 @@ struct CommandDef {
 struct CommandDef CommandDefs[] = {
 	{"nick", ClientHandleNickCommand},
 	{"msg", ClientHandleMsgCommand},
+	{"list", ClientHandleListCommand},
 	{NULL, NULL}
 };
 
@@ -410,4 +412,36 @@ static void ClientHandleMsgCommand(Client client, char* arg)
 			free(msg);
 		}
 	}
+}
+
+static void ClientHandleListCommand(Client client, char* arg)
+{
+	#pragma unused(arg)
+	Dictionary clients = ServerGetClients(ListenerGetServer(client->listener));
+	
+	DictionaryIterator iter;
+	
+	iter = DictionaryGetIterator(clients);
+	char* currentLine = calloc(255 /* max line length for this command */, sizeof(char));
+	
+	while (DictionaryIteratorGetKey(iter) != NULL) {
+		char* name = ((Client)DictionaryIteratorGetValue(iter))->nickname;
+		size_t length = strlen(name) + 3 /* []  */;
+		
+		if (254 - strlen(currentLine) < length) {
+			ClientWriteLine(client, currentLine);
+			memset(currentLine, 0, 255);
+		}
+		
+		strcat(currentLine, "[");
+		strcat(currentLine, name);
+		strcat(currentLine, "] ");
+		
+		DictionaryIteratorNext(iter);
+	}
+	
+	if (strlen(currentLine) > 0)
+		ClientWriteLine(client, currentLine);
+	
+	free(currentLine);
 }
