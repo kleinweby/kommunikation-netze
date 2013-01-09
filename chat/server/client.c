@@ -256,12 +256,18 @@ static void ClientHandleLine(Client client, char* line)
 		line++; // 'remove' the /
 		char* command = strsep(&line, " ");
 		char* args = line;
+		bool foundCommand = false;
 		
 		for (uint32_t i = 0; CommandDefs[i].name != NULL; i++) {
 			if (strcmp(CommandDefs[i].name, command) == 0) {
 				CommandDefs[i].handler(client, args);
+				foundCommand = true;
 				break;
 			}
+		}
+		
+		if (!foundCommand) {
+			ClientWriteLine(client, "Unkown command.");
 		}
 	}
 	// Regular line
@@ -287,6 +293,10 @@ static bool ClientSetNickname(Client client, char* _nick)
 	strcpy(nickname, _nick);
 	// Normalize nickname
 	nickname = strtrim(nickname);
+	
+	if (nickname == NULL || strlen(nickname) == 0) {
+		return false;
+	}
 	
 	// Is already set?
 	if (client->nickname && strcmp(client->nickname, nickname) == 0) {
@@ -334,6 +344,11 @@ void ClientWriteLine(Client client, char* line)
 
 static void ClientHandleNickCommand(Client client, char* arg)
 {
+	if (arg == NULL) {
+		ClientWriteLine(client, "-> /nick <name>");
+		return;
+	}
+	
 	char* oldnick;
 	asprintf(&oldnick, "%s", client->nickname);
 	

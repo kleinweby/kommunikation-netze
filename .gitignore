@@ -5,3 +5,7 @@ echo/echoclient
 echo/echoserver
 webserver/webserver
 *.d
+chat/client/gui-lib/chatgui.h
+chat/client/gui-lib/libchatgui.a
+chat/chatclient
+chat/chatserver
