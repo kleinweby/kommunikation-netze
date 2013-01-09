@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 DEFINE_CLASS(Client, 
 	Listener listener;
@@ -152,6 +153,10 @@ void ClientDisconnect(Client client, char* reason)
 			free(msg);
 		}
 	}
+	
+	close(client->socket);
+	
+	// This will probbably release this client
 	PollDescritptorRemove(client->pollDescriptor);
 }
 
@@ -305,7 +310,6 @@ static bool ClientSetNickname(Client client, char* _nick)
 	
 	Dictionary clients = ServerGetClients(ListenerGetServer(client->listener));
 	
-	char* oldnick = client->nickname;
 	Lock(clients);
 	if (DictionaryGet(clients, nickname) != NULL) {
 		Unlock(clients);
@@ -313,8 +317,10 @@ static bool ClientSetNickname(Client client, char* _nick)
 		return false;
 	}
 	
-	if (oldnick)
-		DictionaryRemove(clients, oldnick);	
+	if (client->nickname) {
+		DictionaryRemove(clients, client->nickname);
+		free(client->nickname);	
+	}
 
 	client->nickname = nickname;
 	DictionarySet(clients, client->nickname, client);
